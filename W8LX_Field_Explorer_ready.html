@@ -1,0 +1,1598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1b2c">
+<title>W8LX AM Field Explorer</title>
+<meta name="description" content="Private mobile prototype of the AM Broadcast Pattern Explorer.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.css">
+<style>
+:root { color-scheme:light; --dark:#0d1b2c; --blue:#1769b1; --ink:#102234; --line:#dce3e8; --back:#edf2f6; }
+* { box-sizing:border-box; }
+/* The embedded document is a fixed three-panel workspace, not a scroller. */
+html,body { width:100%;height:100%;margin:0;padding:0;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;background:var(--back);color:var(--ink); }
+button,select,input { font:inherit; }
+button { cursor:pointer; }
+button:disabled { opacity:.45;cursor:default; }
+/* Standalone GPS test: expand map with viewport height, within fixed limits. */
+.mobileApp { width:100%;height:auto;min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto clamp(320px, calc(100dvh - 290px), 500px) auto auto;overflow:hidden; }
+.head { display:flex;align-items:center;gap:8px;min-width:0;min-height:38px;padding:5px 10px;background:var(--dark);color:#fff; }
+.headTitle { font-size:16px;font-weight:700;line-height:1.1;letter-spacing:-.3px; }
+.searchPanel { min-width:0;min-height:0;overflow:hidden;background:#fff;padding:5px 8px 3px;border-bottom:1px solid var(--line); }
+.searchRow { display:flex;gap:6px;margin-bottom:4px; }
+.searchRow input { flex:1;min-width:0;height:34px;padding:0 9px;border-radius:7px;border:1px solid #bccbd8;background:#fff;font-size:16px; }
+.searchRow button { flex:0 0 auto;height:34px;padding:0 11px;border-radius:7px;border:0;background:var(--blue);color:#fff;font-size:14px;font-weight:650; }
+select { appearance:auto;width:100%;min-width:0;height:29px;margin:0 0 3px;border:1px solid var(--line);border-radius:7px;padding:2px 8px;background:#f8fafb;font-size:13px;color:#21384f; }
+.resultSelectWrap { display:none; }
+.resultSelectWrap.on { display:block; }
+.resultSelectWrap .miniStatus { display:none; }
+.stationRow { display:flex;align-items:center;gap:8px;min-width:0; }
+#selectedStationCard { flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px;color:#455b6e; }
+#selectedStationCard .big { display:inline;font-size:13px;font-weight:700;color:#172b3f; }
+#selectedStationCard>div:not(.big):not(.muted) { display:inline;margin-left:8px; }
+#selectedStationCard .muted,#selectedStationCard .pill,#patternDetails { display:none; }
+#patternSelect { margin-bottom:2px; }
+#dataStatus { font-size:10px;line-height:1.1;color:#647588;max-height:29px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis; }
+#dataStatus:empty { display:none; }
+.mapPanel { position:relative;min-height:0;min-width:0;width:100%;background:#d2dae0;overflow:hidden; }
+#map { position:absolute;inset:0;width:100%;height:100%; }
+.leaflet-container { font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.leaflet-control-attribution, .leaflet-control-attribution a, .maplibregl-ctrl-attrib, .maplibregl-ctrl-attrib a, .maplibregl-ctrl-attrib-inner { font-size:5px!important;line-height:1!important; }
+.readouts { min-height:0;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1px;background:#d9e1e8;border-top:1px solid #d9e1e8; }
+.readout { background:#fff;padding:3px 6px;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:24px; }
+.readout .cap { font-size:9px;font-weight:750;color:#627689;letter-spacing:0;text-transform:uppercase;white-space:nowrap; }
+.readout .val { font-size:12px;font-weight:725;color:#11283d;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums;text-align:right; }
+.readout .val.small { font-size:12px; }
+.readout .meta { display:none; }
+#mapBearing { display:inline; font-size:9px;color:#65778b;white-space:nowrap; }
+.readout.distanceReadout { gap:3px; }
+.readout.distanceReadout .cap { font-size:8px; }
+.readout.distanceReadout .val { font-size:11px; }
+.coordinateReadout { grid-column:1 / -1; min-height:22px; }
+.coordinateReadout .val { font-size:11px; }
+.bottom { min-height:0;background:#fff;border-top:1px solid #dbe2e8;padding:2px 5px 3px; }
+.layerRow { display:flex;align-items:center;gap:3px;min-width:0;width:100%; }
+.calcNote { margin:3px 0 0;text-align:center;font-size:9px;line-height:1.2;color:#627689; }
+.btn { flex:1 1 0;min-width:0;min-height:24px;padding:0 1px;border-radius:5px;border:1px solid #c7d5e2;background:#f4f7fa;color:#193a55;font-size:10px;font-weight:650;white-space:nowrap; }
+.btn[aria-pressed="true"] { color:#1465a8;background:#e6f1fa;border-color:#6fb1e6; }
+.btn#groundModeBtn[aria-pressed="true"] { background:#e7f6ec;border-color:#8bcba5;color:#1d7040; }
+/* GPS test controls occupy map space, not page height. */
+.srHidden { display:none!important; }
+.gpsOverlay { position:absolute;z-index:750;left:7px;bottom:18px;width:170px;max-width:calc(100% - 14px);padding:4px;background:rgba(255,255,255,.94);border:1px solid #91a6b8;border-radius:6px;box-shadow:0 1px 5px #0004; }
+.gpsOverlay .headerGps { display:block;font-size:10px;line-height:1.3;color:#193a55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px; }
+.gpsOverlay .gpsRow { display:flex;gap:4px; }
+.gpsOverlay .gpsRow .btn { min-height:27px;font-size:10px;padding:0 3px; }
+.gpsOverlay .gpsRow .btn.primary { background:#1769b1;color:#fff;border-color:#1769b1; }
+
+.mobileBasemapControl { display:flex;align-items:center;max-width:calc(100vw - 80px);padding:1px 2px!important; }
+.mobileBasemapControl label { display:inline-flex;align-items:center;gap:2px;white-space:nowrap;font:9px Arial,Helvetica,sans-serif; }
+.mobileBasemapControl select { appearance:auto;width:50px!important;min-width:0;max-width:50px;height:19px!important;margin:0!important;padding:0 1px!important;border:1px solid #b3c2d0;border-radius:3px;background:#fff;font:9px Arial,Helvetica,sans-serif!important;color:#1b344a; }
+@media(max-width:360px) { .headTitle{font-size:15px}.readout .val{font-size:11px}.btn{font-size:9px} }
+@media(max-height:680px) { .searchPanel{padding-top:4px;padding-bottom:2px}.readout{padding:2px 5px} }
+/* Landscape has less vertical space. Arrange the same readouts on one row. */
+@media(orientation:landscape) and (max-height:560px) { .readouts{grid-template-columns:repeat(4,minmax(0,1fr))}.coordinateReadout{grid-column:1 / -1}.readout{padding:2px 5px}.head{min-height:38px;padding:6px 10px}.bottom{padding:2px 5px 3px}.btn{min-height:24px}.searchPanel{padding-top:4px;padding-bottom:2px} }
+</style>
+</head>
+<body>
+<div class="mobileApp">
+  <header class="head">
+    <div class="headTitle">W8LX AM Field Explorer</div>
+  </header>
+  <section class="searchPanel" aria-label="Station selection">
+    <div class="searchRow">
+      <input id="stationSearch" type="search" placeholder="Call, frequency, city" autocomplete="off" aria-label="Search stations">
+      <button type="button" id="searchBtn">Search</button>
+    </div>
+    <div class="resultSelectWrap" id="facilityPickerWrap"><div class="miniStatus">Search results</div><select id="facilitySelect" aria-label="Station search results"></select></div>
+    <select id="patternSelect" aria-label="Licensed pattern"></select>
+    <div class="stationRow"><div id="selectedStationCard">No station selected</div></div>
+    <div id="dataStatus" role="status">Loading station data...</div>
+  </section>
+  <main class="mapPanel"><div id="map" aria-label="Map and antenna pattern"></div>
+    <div class="gpsOverlay" id="gpsOverlay">
+      <div class="headerGps" id="gpsState" aria-live="polite">GPS off</div>
+    <div class="gpsRow">
+      <button type="button" id="gpsBtn" class="btn primary">Start GPS</button>
+      <button type="button" id="gpsFollowBtn" class="btn follow" disabled>Following</button>
+    </div>
+    </div>
+  </main>
+  <section class="readouts" aria-label="Field intensity results">
+    <div class="readout"><div class="cap">CALC INTENSITY</div><div class="val" id="mapField">---</div><div class="meta" id="meterMode">M-3 ADJUSTED</div></div>
+    <div class="readout"><div class="cap">RMS</div><div class="val" id="mapDbu">---</div><div class="meta" id="mapFieldMode">M-3 FIELD</div></div>
+    <div class="readout distanceReadout"><div class="cap">Distance</div><div class="val small"><span id="mapDist">---</span> <span id="mapBearing">---</span></div></div>
+    <div class="readout"><div class="cap">Equivalent ND power</div><div class="val small"><span id="digEqPower">---</span> <span id="digEqPowerUnit">W</span></div><div class="meta">Bearing dependent</div></div>
+    <div class="readout coordinateReadout"><div class="cap">Monitor lat / lon</div><div class="val" id="mapCoordinates">---</div></div>
+  </section>
+  <footer class="bottom">
+    <div class="layerRow">
+      <button type="button" id="groundModeBtn" class="btn" aria-pressed="true">Ground: ON</button>
+      <button type="button" id="patternToggle" class="btn" aria-pressed="true">Pattern</button>
+      <button type="button" id="contour05" class="btn" aria-pressed="false">0.5 mV/m</button>
+      <button type="button" id="contour2" class="btn" aria-pressed="false">2 mV/m</button>
+      <button type="button" id="clearMarkerBtn" class="btn" disabled>Clear</button>
+    </div>
+    <div class="calcNote">Estimated calculations based on LMS data and M-3 ground conductivity.</div>
+  </footer>
+</div>
+<!-- Legacy integration anchors only: not part of the mobile interface. -->
+<div class="srHidden" aria-hidden="true">
+  <div id="patternDetails"></div><div id="towerGrid"></div><div id="towerHint"></div>
+  <div id="arraySummary"></div><svg id="towerViz"></svg><button id="polarBtn"></button>
+  <div id="monitorStatus"></div><input id="monitorBearing"><input id="monitorDistance"><button id="setMonitorBtn"></button>
+  <input id="patternRadiusKm" type="range" value="30"><input id="patternRadiusKmValue" value="30">
+  <input id="call"><input id="lat"><input id="lon"><span id="latDec"></span><span id="lonDec"></span>
+  <input id="freq"><input id="power"><input id="rms1"><input id="tlat"><input id="tlon">
+  <button id="liveBtn"></button><button id="resetBtn"></button>
+  <span id="contourStatus"></span>
+  <span id="digField"></span><span id="digDbu"></span><span id="digFreq"></span>
+  <div id="rangeButtons"></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "leaflet": "https://unpkg.com/leaflet@1.9.4/dist/leaflet-src.esm.js",
+    "maplibre-gl": "https://unpkg.com/maplibre-gl@6.3.0/dist/maplibre-gl.mjs"
+  }
+}
+</script>
+<script type="module">
+import { maplibreGL } from "https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/dist/leaflet-maplibre-gl.mjs";
+
+const ESRI_TOPO_KEY = "AAPTaSfJ7T4RO1AD-eVLteIeDEw..L1xG-LPLCSjIjtOWumKmHFtYj_NRVloftEKYObnQs9WOu4tNArzj9Vchqj_ILu1M1zvDRcZnF87WdiGwLh3fTIdDrPPEKXKrkb61rUBeZmorzPnRGrbSUT9xgLdolfx81fjsIzE_p2-qhRJ6KdLPTmS6_bEz6qjJnDgyVXOPuDcgaGpPXF1-KBxHZfD6vT8KfEQX4EIV8lAeFldis8lnvAszKpueuEAAEcWYUdgsIe0zeIYZgzCFs0c.AT1_DKdz1Lav";
+const ESRI_TOPO_STYLE =
+  "https://basemapstyles-api.arcgis.com/arcgis/rest/services/styles/v2/styles/arcgis/topographic" +
+  "?language=en&token=" + encodeURIComponent(ESRI_TOPO_KEY);
+
+window.makeEsriTopoLayer = function(){
+  return maplibreGL({ style: ESRI_TOPO_STYLE });
+};
+window.dispatchEvent(new Event("esriTopoReady"));
+</script>
+
+<script>
+window.AMFIS_SIGNATURE = {
+  name: "AM Mobile Pattern Explorer",
+  author: "Rob Peebles / W8LX.com",
+  copyright: "Copyright (c) 2026 Rob Peebles. All rights reserved.",
+  canonicalUrl: "https://www.w8lx.com/am-broadcast-pattern-explorer",
+  build: "v1.10",
+  id: "w8lx-amfis-2026-12"
+};
+document.documentElement.setAttribute("data-amfis", "w8lx-amfis-2026-12");
+document.documentElement.setAttribute("data-author", "Rob Peebles / W8LX.com");
+console.info("AM Mobile Pattern Explorer prototype (c) 2026 Rob Peebles / W8LX.com");
+
+var digEqPower=document.getElementById('digEqPower');
+var digEqPowerUnit=document.getElementById('digEqPowerUnit');
+const R=6371.0088; let map, txMarker, targetMarker, line, patternLayer, rangeLayers=[], live=false, needleAngle=-64, desiredAngle=-64, animStarted=false, selectedRange=100, lastPoint=null;
+let groundModeOn=true; const groundModeBtn=document.getElementById('groundModeBtn'); const meterMode=document.getElementById('meterMode'); const mapFieldMode=document.getElementById('mapFieldMode');
+const FACILITY_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_facilities_us_lms_geometry_master.json';
+const PATTERN_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_patterns_us_lms_geometry_master_grouped.json';
+const AUTHORIZATION_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_authorization_overlay.json';
+const CANADA_ISED_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_canada_ised_overlay_v03.json';
+let facilities=[], allPatterns=null, currentPatternList=[];
+let authorizationOverlay=null, authorizationLoadPromise=null;
+let canadaIsedOverlay=null, canadaIsedLoadPromise=null;
+let currentStationData = null;
+const embeddedStationData = null;
+function dmsString(dms){return `${dms.deg} ${dms.min} ${Number(dms.sec).toFixed(2)} ${dms.dir}`}
+function decToDmsObj(val, dirPos, dirNeg){let dir=val<0?dirNeg:dirPos; val=Math.abs(val); let deg=Math.floor(val); let mFloat=(val-deg)*60; let min=Math.floor(mFloat); let sec=(mFloat-min)*60; return {deg,min,sec,dir};}
+function recordLat(rec){return Number(rec.lat ?? (Number(rec.latd)+Number(rec.latm||0)/60+Number(rec.lats||0)/3600));}
+function recordLon(rec){if(rec.lon!==undefined) return Number(rec.lon); return -(Number(rec.lond)+Number(rec.lonm||0)/60+Number(rec.lons||0)/3600);}
+function refRms(rec){
+  const directional = rec.dir==='Y' || ((rec.towers||[]).length>1 && rec.dir!=='N');
+
+  let t=rec.trms ?? rec.theoreticalRmsMvPerMAt1Km;
+  if(directional && t!==null && t!==undefined && t!=='' && !Number.isNaN(Number(t)))
+    return {value:Number(t), source:'theoretical_rms'};
+
+  let v=rec.rms ?? rec.standardRmsMvPerMAt1Km;
+  if(v!==null && v!==undefined && v!=='' && !Number.isNaN(Number(v)))
+    return {value:Number(v), source:'standard_rms'};
+
+  if(t!==null && t!==undefined && t!=='' && !Number.isNaN(Number(t))){
+    const kw = Number(rec.kw ?? rec.powerKw);
+    const value = (!directional && Number.isFinite(kw) && kw>0) ? Number(t)*Math.sqrt(kw) : Number(t);
+    return {value, source:directional?'theoretical_rms_fallback':'theoretical_rms_fallback_power_scaled'};
+  }
+  return {value:1, source:'normalized_no_rms'};
+}
+function adaptPatternRecord(rec){let latv=recordLat(rec), lonv=recordLon(rec), rr=refRms(rec); let mode=String(rec.mode||'').toUpperCase(); if(mode==='NIG') mode='NIGHT'; if(!mode) mode='UNSPEC'; return {schema:'am-field-intensity-simulator-single-pattern-v0.2', station:{call:(canadaForPattern(rec)?.currentCall||rec.call||''), facilityId:rec.fid, frequencyKhz:rec.freq, communityCity:rec.city||'', communityState:rec.state||'', serviceCode:'AM', facilityStatus:'candidate', active:''}, pattern:{label:`${rec.call||''} ${rec.freq||''} ${rec.city||''} ${mode}`.trim(), mode, lmsModeCode:rec.mode, directional:rec.dir==='Y'||(rec.towers&&rec.towers.length>1), powerKw:rec.kw, lat:latv, lon:lonv, latDms:decToDmsObj(latv,'N','S'), lonDms:decToDmsObj(lonv,'E','W'), standardRmsMvPerMAt1Km:rec.rms, theoreticalRmsMvPerMAt1Km:rec.trms, referenceRmsMvPerMAt1Km:rr.value, referenceRmsSource:rr.source, towerCount:(rec.towers||[]).length, towers:(rec.towers||[]).map((t,i)=>({number:t.n ?? i+1, fieldRatio:Number(t.ratio??1), phaseDeg:Number(t.phase??0), spacingDeg:Number(t.spacing??0), orientationDeg:Number(t.orient??0), electricalHeightDeg:Number(t.height??90), towerRecordId:t.towerRecordId??null, refTowerRecordId:t.refTowerRecordId??null, towerRefSwitch:t.towerRefSwitch??null, xDeg:(t.xDeg!==undefined&&t.xDeg!==null)?Number(t.xDeg):null, yDeg:(t.yDeg!==undefined&&t.yDeg!==null)?Number(t.yDeg):null, xAbsDeg:(t.xAbsDeg!==undefined&&t.xAbsDeg!==null)?Number(t.xAbsDeg):null, yAbsDeg:(t.yAbsDeg!==undefined&&t.yAbsDeg!==null)?Number(t.yAbsDeg):null, geometryBasis:t.geometryBasis??null, geometryMethod:t.geometryMethod??null, geometryParentTower:t.geometryParentTower??null})), sourceRecordCount:rec.sourceRecordCount||1, sourceRecords:[{applicationId:rec.app, antennaRecordId:rec.ant}]}, notes:['Loaded from AMDBv3 geometry master JSON. Tower-reference geometry is experimental and not regulatory.']};} 
+function renderTowers(towers){
+  const grid=document.getElementById('towerGrid');
+  grid.innerHTML='<div>Tower</div><div>Field<br>Ratio</div><div>Phase<br>(deg)</div><div>Spacing<br>(deg)</div><div>Orient.<br>(deg)</div><div>Height<br>(deg)</div>';
+  towers.forEach((t,i)=>{
+    grid.insertAdjacentHTML('beforeend', `<label data-x="${t.xDeg ?? ''}" data-y="${t.yDeg ?? ''}" data-xabs="${t.xAbsDeg ?? ''}" data-yabs="${t.yAbsDeg ?? ''}" data-geom="${t.geometryMethod ?? ''}" data-basis="${t.geometryBasis ?? ''}" data-refswitch="${t.towerRefSwitch ?? ''}">${t.number ?? i+1}</label><input class="tw-r" value="${t.fieldRatio}"><input class="tw-p" value="${t.phaseDeg}"><input class="tw-s" value="${t.spacingDeg}"><input class="tw-o" value="${t.orientationDeg}"><input class="tw-h" value="${t.electricalHeightDeg ?? ''}">`);
+  });
+  document.querySelectorAll('#towerGrid input').forEach(el=>el.addEventListener('change',()=>{maxCache=null; rmsCache=null; drawTowerVisualizer(); resetSite(); if(targetMarker)updatePoint([+tlat.value,+tlon.value])}));
+  const source = currentStationData?.pattern?.referenceRmsSource ? currentStationData.pattern.referenceRmsSource.replaceAll('_',' ') : 'unknown';
+  towerHint.textContent = `${towers.length} tower${towers.length===1?'':'s'} loaded from JSON. RMS source: ${source}${towers.some(t=>t.xDeg!==null&&t.xDeg!==undefined&&t.yDeg!==null&&t.yDeg!==undefined)?' --- reconstructed tower geometry active':''}`;
+  const mode = currentStationData?.pattern?.mode || '---';
+  const dir = currentStationData?.pattern?.directional ? 'Directional' : 'Non-directional';
+  arraySummary.innerHTML = `<b>Array:</b> ${dir}, ${towers.length} tower${towers.length===1?'':'s'}<br><b>Mode:</b> ${mode} &nbsp; <b>RMS source:</b> ${source}`;
+  drawTowerVisualizer();
+}
+function drawTowerVisualizer(){
+  const svg=document.getElementById('towerViz'); if(!svg) return;
+  const towers=getTowers();
+  const W=260,H=240,cx=130,cy=120;
+  svg.innerHTML='';
+  const ns='http://www.w3.org/2000/svg';
+  function add(tag,attrs){const el=document.createElementNS(ns,tag); for(const [k,v] of Object.entries(attrs)) el.setAttribute(k,v); svg.appendChild(el); return el;}
+  add('rect',{x:0,y:0,width:W,height:H,fill:'#05070a'});
+  add('line',{x1:cx,y1:16,x2:cx,y2:H-24,stroke:'#26384a','stroke-width':1});
+  add('line',{x1:20,y1:cy,x2:W-20,y2:cy,stroke:'#26384a','stroke-width':1});
+  add('text',{x:cx,y:15,fill:'#9fb7cf','font-size':10,'text-anchor':'middle'}).textContent='N';
+  if(!towers.length){add('text',{x:cx,y:cy,fill:'#ddd','font-size':13,'text-anchor':'middle'}).textContent='No tower data'; return;}
+  const raw=towers.map((t,i)=>{const hasXY=Number.isFinite(t.x)&&Number.isFinite(t.y); const spacing=Number(t.spacing||0); const orient=Number(t.orientation||0); return {...t,i,rx:hasXY?t.x:spacing*Math.sin(rad(orient)),ry:hasXY?t.y:-spacing*Math.cos(rad(orient))};});
+  let minX=Math.min(...raw.map(p=>p.rx)), maxX=Math.max(...raw.map(p=>p.rx));
+  let minY=Math.min(...raw.map(p=>p.ry)), maxY=Math.max(...raw.map(p=>p.ry));
+  let spanX=Math.max(maxX-minX,1), spanY=Math.max(maxY-minY,1);
+  let scale=Math.min((W-58)/spanX,(H-72)/spanY);
+  if(!isFinite(scale) || scale<=0) scale=1;
+  const midX=(minX+maxX)/2, midY=(minY+maxY)/2;
+  const pts=raw.map(p=>({...p,x:cx+(p.rx-midX)*scale,y:cy+(p.ry-midY)*scale}));
+  pts.forEach(p=>{
+    add('circle',{cx:p.x,cy:p.y,r:5.5,fill:'#d71920',stroke:'#ffb0b0','stroke-width':1});
+  });
+}
+function getTowers(){
+  const rows=[...document.querySelectorAll('#towerGrid label')];
+  const r=[...document.querySelectorAll('#towerGrid .tw-r')], p=[...document.querySelectorAll('#towerGrid .tw-p')], sp=[...document.querySelectorAll('#towerGrid .tw-s')], o=[...document.querySelectorAll('#towerGrid .tw-o')];
+  return rows.map((row,i)=>{const x=Number(row.dataset.x), y=Number(row.dataset.y); return {ratio:+r[i].value, phase:+p[i].value, spacing:+sp[i].value, orientation:+o[i].value, x:Number.isFinite(x)?x:null, y:Number.isFinite(y)?y:null};});
+}
+function loadStationData(d){
+  currentStationData=d;
+  const st=d.station, p=d.pattern;
+  liveBtn.disabled=false;
+  polarBtn.disabled=false;
+  monitorBearing.disabled=false;
+  monitorDistance.disabled=false;
+  setMonitorBtn.disabled=false;
+  call.value=st.call||''; freq.value=Number(st.frequencyKhz||0).toFixed(0); power.value=p.powerKw ?? ''; rms1.value=p.referenceRmsMvPerMAt1Km ?? 1;
+  lat.value=dmsString(p.latDms); lon.value=dmsString(p.lonDms);
+  const modeSpan=document.querySelector('.day'); if(modeSpan) modeSpan.textContent='('+p.mode+')';
+  const patSelect=document.getElementById('patternType'); if(patSelect) patSelect.options[0].text=`${p.directional?'Directional':'Non-directional'} (${p.towerCount} Tower${p.towerCount===1?'':'s'})`;
+  const lf=document.getElementById('legendFreq'); if(lf) lf.textContent=`${Number(st.frequencyKhz||0).toFixed(0)} kHz normalized`;
+  renderTowers(p.towers||[]);
+  digFreq.textContent=Number(st.frequencyKhz||0).toFixed(0);
+  if(map){
+    autoFitContoursForStation=true;
+    resetSite();
+    map.setView(site(),10);
+    if(gpsPosition) { updatePoint(gpsPosition); if(gpsFollow) map.panTo(gpsPosition); }
+    // Keep an existing monitor marker at the same geographic location.
+    // Bearing and distance are recalculated from the newly selected station.
+    if(targetMarker) updatePoint([+tlat.value,+tlon.value]);
+  }
+}
+
+function dmsToDec(s,neg){s=String(s).trim(); const hemisphere=s.match(/\b([NSEW])\s*$/i); if(hemisphere) neg=/[SW]/i.test(hemisphere[1]); if(s.includes('.')&&s.split(/\s+/).length===1) return parseFloat(s)*(neg?-1:1); let m=s.match(/(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)?\D*(\d+(?:\.\d+)?)?/); if(!m)return NaN; let d=+m[1], mi=+(m[2]||0), se=+(m[3]||0); return (d+mi/60+se/3600)*(neg?-1:1)}
+function rad(x){return x*Math.PI/180} function deg(x){return x*180/Math.PI}
+function site(){let la=dmsToDec(document.getElementById('lat').value,false), lo=dmsToDec(document.getElementById('lon').value,true); latDec.textContent=la.toFixed(6); lonDec.textContent=lo.toFixed(6); return [la,lo]}
+function distBear(a,b){let [lat1,lon1]=a.map(rad),[lat2,lon2]=b.map(rad); let dlat=lat2-lat1,dlon=lon2-lon1; let h=Math.sin(dlat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dlon/2)**2; let d=2*R*Math.asin(Math.sqrt(h)); let y=Math.sin(dlon)*Math.cos(lat2),x=Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dlon); let br=(deg(Math.atan2(y,x))+360)%360; return [d,br]}
+function dir16(b){let dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];return dirs[Math.round(b/22.5)%16]}
+function cis(mag,phase){return [mag*Math.cos(rad(phase)),mag*Math.sin(rad(phase))]} function cadd(a,b){return [a[0]+b[0],a[1]+b[1]]} function cmag(a){return Math.hypot(a[0],a[1])}
+function arrayRaw(bearing){let sum=[0,0]; getTowers().forEach(t=>{let spacePhase; if(Number.isFinite(t.x)&&Number.isFinite(t.y)){spacePhase=t.x*Math.sin(rad(bearing))-t.y*Math.cos(rad(bearing));}else{let rel=rad(bearing-t.orientation); spacePhase=t.spacing*Math.cos(rel);} sum=cadd(sum,cis(t.ratio,t.phase+spacePhase));}); return cmag(sum)}
+let maxCache=null, rmsCache=null;
+function maxRaw(){if(maxCache) return maxCache; let m=0; for(let b=0;b<360;b+=0.5)m=Math.max(m,arrayRaw(b)); maxCache=m||1; return maxCache}
+function rmsRaw(){
+  if(rmsCache) return rmsCache;
+  let sumSq=0, n=0;
+  for(let b=0;b<360;b+=0.5){const a=arrayRaw(b); sumSq+=a*a; n++;}
+  rmsCache=Math.sqrt(sumSq/Math.max(n,1))||1;
+  return rmsCache;
+}
+function pFactor(b){return arrayRaw(b)/maxRaw()}             // relative display: peak = 1
+function absolutePatternFactor(b){
+  const directional = !!currentStationData?.pattern?.directional;
+  return directional ? (arrayRaw(b)/rmsRaw()) : (arrayRaw(b)/maxRaw());
+}
+
+function equivalentNdPowerWatts(bearing){
+  const licensedW=Math.max(Number(power.value)||0,0)*1000;
+  if(!(licensedW>0)) return 0;
+
+  // For a true ND pattern, equivalent ND power is simply licensed power.
+  if(!currentStationData?.pattern?.directional) return licensedW;
+
+  // DA equivalent power is based on the RMS-normalized horizontal pattern:
+  // Peq(theta) = Plicensed * [A(theta) / Arms]^2
+  const rrms=Math.max(rmsRaw(),1e-12);
+  const ratio=arrayRaw(bearing)/rrms;
+  return licensedW*ratio*ratio;
+}
+
+function formatEquivalentPower(watts){
+  if(!Number.isFinite(watts) || watts<0) return {value:'---',unit:'W'};
+  if(watts===0) return {value:'0',unit:'W'};
+  if(watts<0.01) return {value:'<0.01',unit:'W'};
+  if(watts<1) return {value:watts.toFixed(2),unit:'W'};
+  if(watts>=1000000){
+    const mw=watts/1000000;
+    return {value:(mw>=10?mw.toFixed(1):mw.toFixed(2)).replace(/\.00$/,'').replace(/\.0$/,''),unit:'MW'};
+  }
+  if(watts>=1000){
+    const kw=watts/1000;
+    return {value:(kw>=100?kw.toFixed(0):kw>=10?kw.toFixed(1):kw.toFixed(2)).replace(/\.00$/,'').replace(/\.0$/,''),unit:'kW'};
+  }
+  return {value:String(Math.round(watts)),unit:'W'};
+}
+
+function drawRelativePolarPattern(){
+  const svg=document.getElementById('polarPatternSvg');
+  if(!svg) return;
+  const NS='http://www.w3.org/2000/svg';
+  const W=720,H=720,cx=360,cy=360,Rp=286;
+  svg.innerHTML='';
+  function add(tag,attrs,parent=svg){
+    const el=document.createElementNS(NS,tag);
+    Object.entries(attrs||{}).forEach(([k,v])=>el.setAttribute(k,v));
+    parent.appendChild(el);
+    return el;
+  }
+  add('rect',{x:0,y:0,width:W,height:H,fill:'#03070b'});
+
+  // Linear relative-amplitude rings. This matches the shape seen on the map
+  // instead of enlarging weak minor lobes and narrow null shoulders in dB.
+  const rings=[1.00,0.75,0.50,0.25];
+  rings.forEach(frac=>{
+    const rr=Rp*frac;
+    add('circle',{cx,cy,r:rr,fill:'none',stroke:frac===1?'#416887':'#20394f','stroke-width':frac===1?2:1});
+    const t=add('text',{x:cx+7,y:cy-rr+15,fill:'#7897b1','font-size':13});
+    t.textContent=`${Math.round(frac*100)}%`;
+  });
+
+  for(let b=0;b<360;b+=30){
+    const a=rad(b);
+    const x2=cx+Rp*Math.sin(a), y2=cy-Rp*Math.cos(a);
+    add('line',{x1:cx,y1:cy,x2:x2,y2:y2,stroke:'#20394f','stroke-width':1});
+    const lr=Rp+28;
+    const tx=cx+lr*Math.sin(a), ty=cy-lr*Math.cos(a)+5;
+    const label=(b===0?'N':b===90?'E':b===180?'S':b===270?'W':`${b} deg`);
+    const t=add('text',{x:tx,y:ty,fill:(b%90===0?'#dbeaff':'#8da9c0'),'font-size':b%90===0?18:13,'font-weight':b%90===0?800:500,'text-anchor':'middle'});
+    t.textContent=label;
+  }
+
+  // Fine angular sampling keeps complicated arrays and sharp nulls smooth.
+  const points=[];
+  for(let b=0;b<=360;b+=0.25){
+    const rr=Rp*Math.max(0,Math.min(1,pFactor(b)));
+    const a=rad(b);
+    points.push([cx+rr*Math.sin(a),cy-rr*Math.cos(a)]);
+  }
+  const d=points.map((p,i)=>(i?'L':'M')+p[0].toFixed(2)+' '+p[1].toFixed(2)).join(' ')+' Z';
+  add('path',{d,fill:'#1674c8','fill-opacity':0.34,stroke:'#2e9cff','stroke-width':4,'stroke-linejoin':'round','stroke-linecap':'round'});
+  add('circle',{cx,cy,r:3.5,fill:'#8da9c0'});
+
+  const callText=(document.getElementById('call')?.value||'').trim();
+  const mode=currentStationData?.pattern?.mode||'---';
+  const count=getTowers().length;
+  document.getElementById('polarTitle').textContent=`${callText||'AM'} Relative Polar Pattern`;
+  document.getElementById('polarMeta').textContent=`${mode}  /  ${count} tower${count===1?'':'s'}  /  linear relative amplitude`;
+}
+
+function openPolarPattern(){
+  if(!currentStationData) return;
+  drawRelativePolarPattern();
+  polarModal.classList.add('on');
+}
+function closePolarPattern(){polarModal.classList.remove('on');}
+function fieldAt(pt){
+  const s=site(); let [d,b]=distBear(s,pt); d=Math.max(d,0.05);
+  const pfv=absolutePatternFactor(b);
+  const eRef=(+rms1.value)*pfv/d; // existing independent theoretical FI
+  let e=eRef, lossDb=0, groundError=null, m3Profile=null, calcMs=0, m3Inferred=false;
+  if(groundModeOn){
+    const start=performance.now();
+    try {
+      if(!window.m3Research)throw Error('M-3 engine loading');
+      const route=window.m3Research.geography.profile(s,pt);
+      const sections=window.m3Research.geography.sectionsForKirke(route);
+      const model=window.m3Research.kirkeGroundwave(+freq.value,sections);
+      lossDb=model.additional_loss_db;
+      e=eRef*Math.pow(10,-lossDb/20); // ground loss relative to 1/r; do not divide by d twice
+      m3Profile=route;
+      m3Inferred=route.segments.some(s=>s.length_km>0 && s.status==='inferred');
+    } catch(err) {groundError=err.message||'M-3 unavailable'; e=NaN;lossDb=NaN;}
+    calcMs=performance.now()-start;
+    window.m3ResearchLast={d,b,e,eRef,lossDb,groundError,m3Profile,calcMs,m3Inferred};
+  }
+  let dbu=Number.isFinite(e)?20*Math.log10(Math.max(e,1e-12)*1000):NaN;
+  let refDbu=20*Math.log10(Math.max(eRef,1e-12)*1000);
+  return {d,b,pfv,e,eRef,lossDb,dbu,refDbu,groundError,m3Profile,calcMs,m3Inferred};
+}
+function formatField(e){
+ if(!Number.isFinite(e))return '---';
+ if(e>=100)return e.toFixed(0);if(e>=10)return e.toFixed(1);
+ if(e>=1)return e.toFixed(2);if(e>=.1)return e.toFixed(3);
+ if(e>=.01)return e.toFixed(4);if(e>=.001)return e.toFixed(5);
+ if(e>=.0001)return e.toFixed(6);return e.toExponential(2);
+}
+function refreshGroundMode(){
+ groundModeBtn.textContent='Ground: '+(groundModeOn?'ON':'OFF');
+ groundModeBtn.classList.toggle('groundOn',groundModeOn);
+ groundModeBtn.setAttribute('aria-pressed',String(groundModeOn));
+ mapFieldMode.textContent=groundModeOn?'M-3 FIELD':'FIELD';
+ meterMode.textContent=groundModeOn?'M-3 ADJUSTED':'THEORETICAL (1/r)';
+ meterMode.classList.toggle('active',groundModeOn);meterMode.classList.remove('error');
+ if(lastPoint)updatePoint(lastPoint);
+}
+
+function greatCirclePoints(a,b,steps=64){
+  const lat1=rad(a[0]), lon1=rad(a[1]);
+  const lat2=rad(b[0]), lon2=rad(b[1]);
+  const dlat=lat2-lat1, dlon=lon2-lon1;
+  const h=Math.sin(dlat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dlon/2)**2;
+  const d=2*Math.asin(Math.min(1,Math.sqrt(h)));
+  if(d<1e-12) return [a,b];
+
+  const sinD=Math.sin(d);
+  const pts=[];
+  let prevLon=null;
+  for(let i=0;i<=steps;i++){
+    const f=i/steps;
+    const A=Math.sin((1-f)*d)/sinD;
+    const B=Math.sin(f*d)/sinD;
+    const x=A*Math.cos(lat1)*Math.cos(lon1)+B*Math.cos(lat2)*Math.cos(lon2);
+    const y=A*Math.cos(lat1)*Math.sin(lon1)+B*Math.cos(lat2)*Math.sin(lon2);
+    const z=A*Math.sin(lat1)+B*Math.sin(lat2);
+    const lat=deg(Math.atan2(z,Math.hypot(x,y)));
+    let lon=deg(Math.atan2(y,x));
+
+    // Unwrap longitude so Leaflet follows the short great-circle path
+    // instead of drawing across the map at the +/-180 deg seam.
+    if(prevLon!==null){
+      while(lon-prevLon>180) lon-=360;
+      while(lon-prevLon<-180) lon+=360;
+    }
+    prevLon=lon;
+    pts.push([lat,lon]);
+  }
+  return pts;
+}
+
+function updatePoint(pt){
+  lastPoint=pt;
+  tlat.value=pt[0].toFixed(6);
+  tlon.value=pt[1].toFixed(6);
+  if(!targetMarker){
+    targetMarker=L.marker(pt,{draggable:true}).addTo(map);
+    targetMarker.on('drag',e=>updatePoint([e.latlng.lat,e.latlng.lng]));
+    targetMarker.on('dragend',e=>updatePoint([e.target.getLatLng().lat,e.target.getLatLng().lng]));
+  } else targetMarker.setLatLng(pt);
+  if(line) line.remove();
+  line=L.polyline(greatCirclePoints(site(),pt),{color:'#111',weight:3}).addTo(map);
+  const f=fieldAt(pt);
+
+  // Keep the Monitor Point controls synchronized with the actual marker.
+  // A map click, drag, live-track update, or station change must never leave
+  // stale bearing/distance values in the left panel.
+  monitorBearing.value=f.b.toFixed(1);
+  monitorDistance.value=f.d.toFixed(2);
+  monitorStatus.textContent=`Marker position: ${f.b.toFixed(1)} deg true, ${f.d.toFixed(2)} km.` +
+    (groundModeOn?(f.groundError?` M-3 unavailable: ${f.groundError}.`:` M-3 loss ${f.lossDb.toFixed(2)} dB, ${f.calcMs.toFixed(1)} ms.`):'');
+  meterMode.classList.toggle('error',!!f.groundError);
+  meterMode.textContent=f.groundError?'M-3 UNAVAILABLE':(groundModeOn?(f.m3Inferred?'M-3 INFERRED':'M-3 ADJUSTED'):'THEORETICAL (1/r)');
+  document.getElementById('mapCoordinates').textContent=pt[0].toFixed(5)+', '+pt[1].toFixed(5);
+  document.getElementById('clearMarkerBtn').disabled=false;
+  mapDist.textContent=f.d.toFixed(1)+' km';
+  mapBearing.textContent=f.b.toFixed(0)+' deg';
+  mapField.textContent=Number.isFinite(f.e)?formatField(f.e)+' mV/m':'UNAVAILABLE';
+  mapDbu.textContent=Number.isFinite(f.dbu)?f.dbu.toFixed(1)+' dBuV/m':'---';
+  digField.textContent=formatField(f.e);
+  digDbu.textContent=Number.isFinite(f.dbu)?f.dbu.toFixed(1):'---';
+  digFreq.textContent=freq.value;
+  const ep=formatEquivalentPower(equivalentNdPowerWatts(f.b));
+  digEqPower.textContent=ep.value;
+  digEqPowerUnit.textContent=ep.unit;
+  // Analog needle intentionally omitted in mobile UI.
+}
+function clearMeasurement(){lastPoint=null; tlat.value=''; tlon.value=''; if(targetMarker){targetMarker.remove(); targetMarker=null;} if(line){line.remove(); line=null;} mapDist.textContent='---'; mapBearing.textContent='---'; mapField.textContent='---'; mapDbu.textContent='---'; digField.textContent='---'; digDbu.textContent='---'; digEqPower.textContent='---'; digEqPowerUnit.textContent='W'; document.getElementById('mapCoordinates').textContent='---'; document.getElementById('clearMarkerBtn').disabled=true; }
+
+function fmtScale(v){return v>=100?String(Math.round(v)):v>=10?String(v.toFixed(0)):v>=1?String(v.toFixed(1)).replace(/\.0$/,''):v>=0.1?String(v.toFixed(1)):String(v.toFixed(2))}
+function meterAngleFromMultiplier(mult){
+  const minMult = 0.0003, maxMult = 1;
+  const t = (Math.log10(mult) - Math.log10(minMult)) / (Math.log10(maxMult) - Math.log10(minMult));
+  return -64 + Math.max(0, Math.min(1, t)) * 128;
+}
+function placeMeterLabel(el, mult){
+  const cx=165, cy=190;
+  const isFirst = Math.abs(mult - 0.0003) < 1e-9;
+  const isLast = Math.abs(mult - 1) < 1e-9;
+  const r = isFirst ? 152 : (isLast ? 146 : 138);
+  const yOffset = isFirst ? 9 : 6;
+  const a=rad(meterAngleFromMultiplier(mult));
+  el.setAttribute('x', (cx + r*Math.sin(a)).toFixed(1));
+  el.setAttribute('y', (cy - r*Math.cos(a) - yOffset).toFixed(1));
+}
+function updateScaleLabels(){
+  const mult=[0.0003,0.001,0.003,0.01,0.03,0.1,0.3,1];
+  mult.forEach((m,i)=>{let el=document.getElementById('scale'+i); if(el){el.textContent=fmtScale(selectedRange*m); placeMeterLabel(el,m);}});
+}
+function setRange(r){selectedRange=Number(r); document.querySelectorAll('#rangeButtons button').forEach(b=>b.classList.toggle('on',Number(b.dataset.range)===selectedRange)); updateScaleLabels(); if(lastPoint){const e=fieldAt(lastPoint).e;setNeedle(Number.isFinite(e)?e:0);}}
+function setNeedle(e){const min=Math.max(selectedRange*0.0003,1e-9); const max=selectedRange; const le=Math.log10(Math.max(e,min)); const t=Math.max(0, Math.min(1, (le - Math.log10(min)) / (Math.log10(max)-Math.log10(min)))); desiredAngle=-64 + t*128; if(!animStarted){animStarted=true; requestAnimationFrame(animateNeedle)}}
+function animateNeedle(){const ng=document.getElementById('needleGroup'); needleAngle += (desiredAngle-needleAngle)*0.18; if(ng)ng.setAttribute('transform',`rotate(${needleAngle} 165 190)`); requestAnimationFrame(animateNeedle)}
+function drawTicks(){
+  let g=document.getElementById('ticks'); g.innerHTML='';
+  const cx=165, cy=190, r1=135;
+  const majors=[0.0003,0.001,0.003,0.01,0.03,0.1,0.3,1];
+  const vals=[];
+  for(let exp=-4; exp<=0; exp++){
+    for(let n=1; n<=9; n++){
+      const m=n*Math.pow(10,exp);
+      if(m>=0.0003 && m<=1) vals.push(m);
+    }
+  }
+  vals.push(0.0003,0.003,0.03,0.3,1);
+  [...new Set(vals.map(v=>Number(v.toPrecision(8))))].sort((a,b)=>a-b).forEach(m=>{
+    const isMajor = majors.some(x=>Math.abs(Math.log10(m/x))<0.00001);
+    const len = isMajor ? 17 : 7;
+    const a=rad(meterAngleFromMultiplier(m));
+    const r2=r1-len;
+    let l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',(cx+r1*Math.sin(a)).toFixed(1));
+    l.setAttribute('y1',(cy-r1*Math.cos(a)).toFixed(1));
+    l.setAttribute('x2',(cx+r2*Math.sin(a)).toFixed(1));
+    l.setAttribute('y2',(cy-r2*Math.cos(a)).toFixed(1));
+    l.setAttribute('stroke','#111');
+    l.setAttribute('stroke-width',isMajor?2.2:1);
+    g.appendChild(l);
+  });
+}
+function destPoint(s,b,km){let lat1=rad(s[0]),lon1=rad(s[1]),br=rad(b),ad=km/R; let lat2=Math.asin(Math.sin(lat1)*Math.cos(ad)+Math.cos(lat1)*Math.sin(ad)*Math.cos(br)); let lon2=lon1+Math.atan2(Math.sin(br)*Math.sin(ad)*Math.cos(lat1),Math.cos(ad)-Math.sin(lat1)*Math.sin(lat2)); return [deg(lat2),deg(lon2)]}
+
+function setMonitorPointFromInputs(panToPoint=true){
+  if(!currentStationData){monitorStatus.textContent='Select a station and pattern first.'; return;}
+  const bRaw=Number(monitorBearing.value);
+  const dRaw=Number(monitorDistance.value);
+  if(!Number.isFinite(bRaw) || !Number.isFinite(dRaw) || dRaw<=0){
+    monitorStatus.textContent='Enter a valid bearing and distance in km.';
+    return;
+  }
+  const b=((bRaw%360)+360)%360;
+  const d=dRaw;
+  monitorBearing.value=b.toFixed(1);
+  monitorDistance.value=d.toFixed(2);
+  live=false;
+  liveBtn.textContent='Track: Hold';
+  liveBtn.classList.remove('liveOn');
+  map.getContainer().classList.remove('crosshair');
+  const pt=destPoint(site(),b,d);
+  updatePoint(pt);
+  if(panToPoint) map.panTo(pt);
+  monitorStatus.textContent=`Monitor point set: ${b.toFixed(1)} deg true, ${d.toFixed(2)} km.`;
+}
+function selectedPatternRadiusKm(){
+  return Math.max(5,Math.min(1000,Number(patternRadiusKm?.value)||20));
+}
+function syncPatternRadius(source){
+  let v=Number(source?.value);
+  if(!Number.isFinite(v)) v=20;
+  v=Math.max(5,Math.min(1000,Math.round(v/5)*5));
+  patternRadiusKm.value=v;
+  patternRadiusKmValue.value=v;
+  drawPattern();
+}
+
+function drawPattern(fitToScale=false){
+  if(patternLayer){patternLayer.remove(); patternLayer=null;}
+  if(!currentStationData || document.getElementById('patternToggle').getAttribute('aria-pressed')!=='true') return;
+  let s=site(); if(txMarker)txMarker.setLatLng(s);
+
+  const radiusKm=selectedPatternRadiusKm();
+  let pts=[];
+  for(let b=0;b<=360;b+=2){
+    const pfv=pFactor(b);
+    const km=Math.max(0.001,radiusKm*pfv);
+    pts.push(destPoint(s,b,km));
+  }
+  patternLayer=L.polygon(pts,{color:'red',weight:2,fillColor:'red',fillOpacity:.15}).addTo(map);
+
+  if(fitToScale && patternLayer.getBounds().isValid())
+    map.fitBounds(patternLayer.getBounds(),{padding:[24,24],maxZoom:11});
+}
+// Optional M-3 groundwave contours; independent of the theoretical pattern display.
+// Locate the first threshold crossing outward on each sampled radial. Do not
+// require the field to be defined at an arbitrary distant search endpoint.
+const contourInputs=[{id:'contour05',level:0.5,color:'#1874ce'},{id:'contour2',level:2,color:'#238342'}];
+const contourStatus=document.getElementById('contourStatus');
+let contourLayers=[], contourGeneration=0;
+let autoFitContoursForStation=false;
+const contourYield=()=>new Promise(resolve=>setTimeout(resolve,0));
+function clearContours(){
+  contourGeneration++;
+  contourLayers.forEach(layer=>layer.remove());
+  contourLayers=[];
+}
+// Contour-only continuation of the final mapped conductivity region.
+// The geographic database, interactive monitor and propagation engines are unchanged.
+const CONTOUR_SEARCH_MAX_KM=1000;
+const CONTOUR_CONTINUATION_KM=500;
+function contourOuterExit(origin,b){
+  try{
+    const geo=window.m3Research.geography;
+    // Find the first exit from mapped conductivity. A later mapped polygon
+    // limits the continuation: never carry an assumed conductivity through it.
+    const far=geo.profile(origin,destPoint(origin,b,CONTOUR_SEARCH_MAX_KM));
+    const seg=far.segments;
+    const gapIndex=seg.findIndex(s=>s.status==='not_mapped' && s.conductivity_mS_m===null);
+    if(gapIndex<1)return null;
+    const gap=seg[gapIndex], mapped=seg.slice(0,gapIndex);
+    if(mapped.some(s=>!(s.conductivity_mS_m>0)))return null;
+    // Retain all existing material and provenance validation on the prefix.
+    geo.sectionsForKirke({segments:mapped});
+    return {exitKm:gap.start_km,
+            limitKm:Math.min(CONTOUR_SEARCH_MAX_KM,gap.start_km+CONTOUR_CONTINUATION_KM,gap.end_km)};
+  }catch(_){return null;}
+}
+function contourFieldAt(b,d,outerExit){
+  try{
+    const geo=window.m3Research.geography;
+    const route=geo.profile(site(),destPoint(site(),b,d));
+    let sections;
+    const tail=route.segments[route.segments.length-1];
+    if(tail?.status==='not_mapped' && tail.conductivity_mS_m===null){
+      // Only a genuine terminal mapped-to-unmapped exit may be continued.
+      if(!outerExit || d>outerExit.limitKm+1e-7 ||
+         Math.abs(tail.start_km-outerExit.exitKm)>0.01)return NaN;
+      sections=geo.sectionsForKirke({segments:route.segments.slice(0,-1)});
+      // Extend the last Kirke section: no new transition, no new conductivity.
+      sections[sections.length-1].length_km+=tail.length_km;
+    }else{
+      sections=geo.sectionsForKirke(route);
+    }
+    const model=window.m3Research.kirkeGroundwave(+freq.value,sections);
+    const eRef=(+rms1.value)*absolutePatternFactor(b)/d;
+    return eRef*Math.pow(10,-model.additional_loss_db/20);
+  }catch(_){return NaN;}
+}
+async function drawContours(){
+  clearContours();
+  const generation=contourGeneration;
+  const chosen=contourInputs.filter(c=>document.getElementById(c.id).getAttribute('aria-pressed')==='true');
+  if(!chosen.length){contourStatus.textContent='Contours off.';return;}
+  if(!groundModeOn){contourStatus.textContent='Contours require Ground Loss ON.';return;}
+  if(!currentStationData || !map){contourStatus.textContent='Select a station and pattern.';return;}
+  if(!window.m3Research){
+    contourStatus.textContent=window.m3ResearchLoadError?'M-3 data unavailable.':'Waiting for M-3 geography...';
+    return;
+  }
+  contourStatus.textContent='Tracing groundwave contours...';
+  const origin=site();
+  let visibleContourBounds=null;
+  const sampleDistances=[1,2,5,10,20,40,80,160,320,640,1000];
+  const outerExitByBearing=new Map();
+  let missingBearings=0;
+  for(const c of chosen){
+    let segments=[], segment=[];
+    for(let bearing=0;bearing<=360;bearing+=5){
+      if(generation!==contourGeneration)return;
+      const b=bearing%360;
+      if(!outerExitByBearing.has(b))
+        outerExitByBearing.set(b,contourOuterExit(origin,b));
+      const outerExit=outerExitByBearing.get(b);
+      let crossing=NaN;
+      // Include the end of the permitted 500 km continuation; the fixed
+      // coarse samples alone can skip the last valid search interval.
+      const distances=outerExit
+        ? [...new Set([...sampleDistances,outerExit.limitKm])].sort((a,b)=>a-b)
+        : sampleDistances;
+      // A missing distant conductivity assignment cannot invalidate a crossing
+      // already found closer to the transmitter. Never bridge an internal gap.
+      let previous=null, bracket=null;
+      for(const d of distances){
+        const e=contourFieldAt(b,d,outerExit);
+        if(!Number.isFinite(e)){
+          previous=null;
+          continue;
+        }
+        if(!previous){
+          if(e<c.level){
+            // Contour display only: if the field is already below threshold at
+            // the 1 km starting sample, the crossing lies inside 1 km.
+            // Collapse this near-null vertex to the transmitter so the line
+            // stays connected. Do not extrapolate the far-field groundwave
+            // engine into the antenna's near field or change fieldAt().
+            // A failed 1 km calculation still produces a genuine gap.
+            if(d===1 && distances[0]===1)crossing=0;
+            break;
+          }
+        }else if(previous.e>=c.level && e<=c.level){
+          bracket={lo:previous.d,hi:d};
+          break;
+        }
+        previous={d,e};
+      }
+      if(bracket){
+        let {lo,hi}=bracket,valid=true;
+        for(let n=0;n<12;n++){
+          const mid=(lo+hi)/2;
+          const e=contourFieldAt(b,mid,outerExit);
+          if(!Number.isFinite(e)){valid=false;break;}
+          if(e>=c.level)lo=mid;else hi=mid;
+        }
+        if(valid)crossing=(lo+hi)/2;
+      }
+      if(Number.isFinite(crossing))segment.push(destPoint(origin,b,crossing));
+      else {
+        missingBearings++;
+        if(segment.length>1)segments.push(segment);
+        segment=[];
+      }
+      // Allow UI changes to cancel a previous trace before it adds map layers.
+      if(bearing%20===0)await contourYield();
+    }
+    if(segment.length>1)segments.push(segment);
+    if(generation!==contourGeneration)return;
+    for(const pts of segments){
+      const layer=L.polyline(pts,{color:c.color,weight:2.5,opacity:0.95,interactive:false}).addTo(map);
+      contourLayers.push(layer);
+      const bounds=layer.getBounds();
+      if(bounds.isValid()){
+        if(visibleContourBounds)visibleContourBounds.extend(bounds);
+        else visibleContourBounds=bounds;
+      }
+    }
+  }
+  if(generation!==contourGeneration)return;
+  // Fit the completed contours once per station/pattern selection, not after
+  // every user toggle or map interaction. Keep the transmitter in view too.
+  if(autoFitContoursForStation && visibleContourBounds?.isValid()){
+    visibleContourBounds.extend(L.latLng(origin[0],origin[1]));
+    map.fitBounds(visibleContourBounds,{padding:[28,28],maxZoom:10});
+    autoFitContoursForStation=false;
+  }
+  contourStatus.textContent=missingBearings
+    ?'M-3 groundwave contours  /  gaps indicate unresolved crossings.'
+    :'M-3 groundwave contours displayed.';
+}
+function drawRanges(){rangeLayers.forEach(x=>x.remove()); rangeLayers=[]}
+function resetSite(){maxCache=null; rmsCache=null; drawRanges(); if(!currentStationData) return; let s=site(); if(txMarker) txMarker.setLatLng(s); else txMarker=L.marker(s,{title:'Transmitter site'}).addTo(map).bindPopup('Transmitter Site'); drawPattern(); drawContours()}
+
+async function loadFacilityIndex(){
+  dataStatus.textContent='Loading AMDBv3 geometry facility index from GitHub...';
+  try{
+    const r=await fetch(FACILITY_URL,{cache:'no-store'}); if(!r.ok) throw new Error(r.status+' '+r.statusText);
+    const j=await r.json(); facilities=j.facilities||[];
+    dataStatus.textContent=`Facility index loaded: ${facilities.length.toLocaleString()} facilities. Search by call, frequency, city, or facility ID.`;
+  }catch(e){ dataStatus.innerHTML=`<span class="loadWarn">Could not load facility index:</span> ${e.message}. Try from a web server, not file:// if blocked.`; }
+}
+async function loadPatternData(){
+  if(allPatterns) return allPatterns;
+  dataStatus.textContent='Loading AMDBv3 geometry master pattern file from GitHub. This may take a moment...';
+  const r=await fetch(PATTERN_URL,{cache:'no-store'}); if(!r.ok) throw new Error(r.status+' '+r.statusText);
+  allPatterns=await r.json();
+  dataStatus.textContent=`Pattern file loaded: ${allPatterns.length.toLocaleString()} grouped candidate patterns.`;
+  return allPatterns;
+}
+async function loadCanadaIsedOverlay(){
+  if(canadaIsedOverlay) return canadaIsedOverlay;
+  if(canadaIsedLoadPromise) return canadaIsedLoadPromise;
+  canadaIsedLoadPromise=(async()=>{
+    const r=await fetch(CANADA_ISED_URL,{cache:'no-store'});
+    if(!r.ok) throw new Error(r.status+' '+r.statusText);
+    const j=await r.json();
+    if(!j || !j.patterns || !Array.isArray(j.stations)) throw new Error('Canadian overlay schema not recognized');
+    canadaIsedOverlay=j;
+    return j;
+  })();
+  try{return await canadaIsedLoadPromise;}
+  catch(e){canadaIsedLoadPromise=null; throw e;}
+}
+function canadaForPattern(p){
+  return canadaIsedOverlay?.patterns?.[p?.id] || null;
+}
+function canadaStationForFacility(fid){
+  if(!canadaIsedOverlay?.stations) return null;
+  return canadaIsedOverlay.stations.find(s=>Object.values(s.modes||{}).some(m=>String(m?.facilityId)===String(fid) && m?.patternId));
+}
+function displayCallForFacility(f){
+  return canadaStationForFacility(f?.fid)?.call || f?.call || '';
+}
+
+async function loadAuthorizationOverlay(){
+  if(authorizationOverlay) return authorizationOverlay;
+  if(authorizationLoadPromise) return authorizationLoadPromise;
+  authorizationLoadPromise=(async()=>{
+    const r=await fetch(AUTHORIZATION_URL,{cache:'no-store'});
+    if(!r.ok) throw new Error(r.status+' '+r.statusText);
+    const j=await r.json();
+    if(!j || !j.patterns) throw new Error('overlay does not contain a patterns object');
+    authorizationOverlay=j;
+    return j;
+  })();
+  try{return await authorizationLoadPromise;}
+  catch(e){authorizationLoadPromise=null; throw e;}
+}
+function modeName(mode){mode=String(mode||'').toUpperCase(); return mode==='NIG'?'NIGHT':(mode||'UNSPEC');}
+function facilityLabel(f){const c=displayCallForFacility(f); return `${c||'(none)'} --- ${f.freq?f.freq+' kHz':''} --- ${f.city||''}${f.state?', '+f.state:''}`.replace(/ ---  --- /,' --- ');}
+function selectedFacility(){return facilities.find(f=>String(f.fid)===String(facilitySelect.value));}
+function updateStationCard(f){
+  if(!f){selectedStationCard.innerHTML='<div class="big">No station selected</div><div class="muted">Search by call, frequency, city, or facility ID.</div>'; return;}
+  const displayCall=displayCallForFacility(f); selectedStationCard.innerHTML=`<div class="big">${displayCall||'(none)'} ${f.freq?f.freq+' kHz':''}</div><div>${f.city||''}${f.state?', '+f.state:''}</div><div class="muted">Facility ID ${f.fid}</div><span class="pill">${f.patterns||0} candidate pattern${f.patterns===1?'':'s'}</span>`;
+}
+function isAuthorizationScope(p){
+  return /^[KW]/i.test(String(p?.call||''));
+}
+function authorizationForPattern(p){
+  if(!isAuthorizationScope(p)) return null;
+  return authorizationOverlay?.patterns?.[p?.id] || null;
+}
+function authorizationClass(p){
+  return String(authorizationForPattern(p)?.primaryClass || '').toUpperCase();
+}
+function authorizationLabel(cls){
+  const labels={LICENSE:'ACTIVE',CP:'CP',STA:'STA',HISTORICAL:'INACTIVE',AMBIGUOUS:'AMBIGUOUS',UNKNOWN:'AMBIGUOUS'};
+  return labels[cls]||'';
+}
+function authorizationBadgeHtml(auth){
+  if(!auth) return '';
+  const cls=String(auth.primaryClass||'UNKNOWN').toUpperCase();
+  const label=authorizationLabel(cls);
+  return label ? `<span class="authBadge auth-${cls}">${label}</span>` : '';
+}
+function compactPatternLabel(p,i){
+  const m=modeName(p.mode), auth=authorizationForPattern(p), ca=canadaForPattern(p);
+  const label=ca?'ISED ACTIVE':(auth?authorizationLabel(String(auth.primaryClass||'UNKNOWN').toUpperCase()):'');
+  return `${label?label+' --- ':''}${m} --- ${p.kw??'?'} kW --- ${p.towers?.length||0} towers`;
+}
+function rmsText(p){let rms=p.rms, trms=p.trms; if(rms!==null&&rms!==undefined&&rms!==''&&!Number.isNaN(Number(rms))) return `RMS ${Number(rms).toFixed(2)}`; if(trms!==null&&trms!==undefined&&trms!==''&&!Number.isNaN(Number(trms))) return `RMS ${Number(trms).toFixed(2)} theoretical fallback`; return 'RMS missing';}
+function updatePatternDetails(rec){
+  if(!rec){patternDetails.textContent='Pattern details will appear here.'; return;}
+  const lat=recordLat(rec), lon=recordLon(rec), m=modeName(rec.mode), tw=rec.towers?.length||0;
+  const auth=authorizationForPattern(rec), ca=canadaForPattern(rec);
+  const authLine=ca ? `<span class="authBadge auth-LICENSE">ISED ACTIVE</span><br>` : (auth ? `${authorizationBadgeHtml(auth)}<br>` : '');
+  patternDetails.innerHTML=`${authLine}<b>${m}</b> &nbsp; ${rec.kw??'?'} kW &nbsp; ${tw} tower${tw===1?'':'s'}<br>${rmsText(rec)}<br><span class="muted">Site ${lat.toFixed(4)}, ${lon.toFixed(4)}</span>`;
+}
+function freqKhz(v){
+  const n=Number(String(v??'').replace(/[^0-9.]/g,''));
+  if(!Number.isFinite(n)) return null;
+  return Math.round(n>100000 ? n/1000 : n);
+}
+function searchFacilities(){
+  const q=stationSearch.value.trim().toUpperCase();
+  facilitySelect.innerHTML='';
+  patternSelect.innerHTML='<option>Select a station first</option>';
+  updatePatternDetails(null);
+  if(!facilities.length){facilitySelect.innerHTML='<option>Facility index not loaded yet</option>'; facilityPickerWrap.classList.add('on'); return;}
+  if(!q){facilityPickerWrap.classList.remove('on'); updateStationCard(null); dataStatus.textContent=`Facility index loaded: ${facilities.length.toLocaleString()} facilities. Search by call, frequency, city, or facility ID.`; return;}
+  const qFreq=/^\d+(?:\.\d+)?$/.test(q) ? freqKhz(q) : null;
+  const canadaFacilityIds=new Set();
+  if(canadaIsedOverlay?.stations){
+    canadaIsedOverlay.stations.forEach(s=>{
+      if(String(s.call||'').toUpperCase().includes(q)){
+        Object.values(s.modes||{}).forEach(m=>{if(m?.facilityId && m?.patternId) canadaFacilityIds.add(String(m.facilityId));});
+      }
+    });
+  }
+  let out=facilities.filter(f=>{
+    const fFreq=freqKhz(f.freq);
+    const displayCall=displayCallForFacility(f).toUpperCase();
+    return displayCall.includes(q) || String(f.call||'').toUpperCase().includes(q) || canadaFacilityIds.has(String(f.fid)) || (qFreq!==null && fFreq===qFreq) || String(f.freq||'')===q || String(f.city||'').toUpperCase().includes(q) || String(f.state||'').toUpperCase()===q || String(f.fid||'')===q;
+  });
+  function matchRank(f){
+    const call=displayCallForFacility(f).toUpperCase();
+    const city=String(f.city||'').toUpperCase();
+    const state=String(f.state||'').toUpperCase();
+    const fid=String(f.fid||'');
+    const fFreq=freqKhz(f.freq);
+    if(call===q) return 0;
+    if(qFreq!==null && fFreq===qFreq) return 1;
+    if(fid===q) return 1;
+    if(call.startsWith(q)) return 2;
+    if(call.includes(q)) return 3;
+    if(city.startsWith(q)) return 4;
+    if(city.includes(q)) return 5;
+    if(state===q) return 6;
+    return 7;
+  }
+  out.sort((a,b)=>{
+    const ar=matchRank(a), br=matchRank(b);
+    if(ar!==br) return ar-br;
+    const ac=String(a.call||'').toUpperCase(), bc=String(b.call||'').toUpperCase();
+    const aOdd=/^(NEW|D[WK]|[A-Z]{0,2}NEW)/.test(ac), bOdd=/^(NEW|D[WK]|[A-Z]{0,2}NEW)/.test(bc);
+    if(aOdd!==bOdd) return aOdd?1:-1;
+    const as=String(a.state||''), bs=String(b.state||'');
+    if(as!==bs) return as.localeCompare(bs);
+    const acity=String(a.city||''), bcity=String(b.city||'');
+    if(acity!==bcity) return acity.localeCompare(bcity);
+    return ac.localeCompare(bc);
+  });
+  const total=out.length;
+  const cap=(qFreq!==null)?300:100;
+  out=out.slice(0,cap);
+  if(!out.length){facilitySelect.innerHTML='<option>No matches</option>'; facilityPickerWrap.classList.add('on'); updateStationCard(null); dataStatus.textContent='No matches found.'; return;}
+  out.forEach(f=>{let o=document.createElement('option'); o.value=f.fid; o.textContent=facilityLabel(f); facilitySelect.appendChild(o);});
+  facilityPickerWrap.classList.toggle('on', out.length>1);
+  const exactCall=out.filter(f=>displayCallForFacility(f).toUpperCase()===q);
+  if(exactCall.length===1){
+    facilitySelect.value=String(exactCall[0].fid);
+    selectFacility(facilitySelect.value);
+  }else if(out.length===1){
+    selectFacility(facilitySelect.value);
+  }else {
+    updateStationCard(out[0]);
+    dataStatus.textContent=`${out.length}${total>out.length?' of '+total:''} matches shown${exactCall.length?' --- exact callsign matches listed first':''}. Pick one from Search results.`;
+  }
+}
+function patternAuthorizationRank(p){
+  if(canadaForPattern(p)) return -1;
+  const order={LICENSE:0,CP:1,STA:2,AMBIGUOUS:3,UNKNOWN:4,HISTORICAL:5};
+  const cls=authorizationClass(p);
+  return Object.prototype.hasOwnProperty.call(order,cls) ? order[cls] : 6;
+}
+function sortPatternsByAuthorization(list){
+  if(!Array.isArray(list) || list.length<2) return Array.isArray(list)?list:[];
+  return list.map((p,i)=>({p,i,rank:patternAuthorizationRank(p)}))
+    .sort((a,b)=>a.rank-b.rank || a.i-b.i)
+    .map(x=>x.p);
+}
+function defaultPatternIndex(fid,list){
+  if(!Array.isArray(list)||!list.length) return 0;
+  const caIdx=list.findIndex(p=>!!canadaForPattern(p));
+  if(caIdx>=0) return caIdx;
+  if(!isAuthorizationScope(list[0])) return 0;
+  const order=['LICENSE','CP','STA','AMBIGUOUS','UNKNOWN','HISTORICAL'];
+  for(const cls of order){
+    const idx=list.findIndex(p=>authorizationClass(p)===cls);
+    if(idx>=0) return idx;
+  }
+  return 0;
+}
+async function selectFacility(fid){
+  if(!fid) return;
+  updateStationCard(selectedFacility());
+  try{
+    const pats=await loadPatternData();
+    let overlayWarning='';
+    try{
+      dataStatus.textContent='Loading authorization overlay from GitHub...';
+      await loadAuthorizationOverlay();
+    }catch(authError){
+      overlayWarning=`Authorization overlay unavailable: ${authError.message}. Geometry remains usable.`;
+    }
+    try{
+      dataStatus.textContent='Loading Canadian ISED overlay from GitHub...';
+      await loadCanadaIsedOverlay();
+      updateStationCard(selectedFacility());
+    }catch(caError){
+      overlayWarning += `${overlayWarning?' ':''}Canadian ISED overlay unavailable: ${caError.message}. LMS geometry remains usable.`;
+    }
+    currentPatternList=sortPatternsByAuthorization(pats.filter(p=>String(p.fid)===String(fid)));
+    patternSelect.innerHTML='';
+    if(!currentPatternList.length){patternSelect.innerHTML='<option>No pattern records found</option>'; updatePatternDetails(null); return;}
+    currentPatternList.forEach((p,i)=>{let o=document.createElement('option'); o.value=i; o.textContent=compactPatternLabel(p,i); patternSelect.appendChild(o);});
+    const defaultIdx=defaultPatternIndex(fid,currentPatternList);
+    patternSelect.value=String(defaultIdx);
+    dataStatus.innerHTML=overlayWarning?`<span class="loadWarn">${overlayWarning}</span>`:'';
+    updatePatternDetails(currentPatternList[defaultIdx]);
+    loadStationData(adaptPatternRecord(currentPatternList[defaultIdx]));
+  }catch(e){ dataStatus.innerHTML=`<span class="loadWarn">Could not load pattern file:</span> ${e.message}`; }
+}
+function selectPatternIndex(idx){let rec=currentPatternList[Number(idx)]; if(rec){updatePatternDetails(rec); loadStationData(adaptPatternRecord(rec));}}
+
+function initBlankState(){
+  currentStationData=null;
+  currentPatternList=[];
+  stationSearch.value='';
+  facilitySelect.innerHTML='<option>Search for a station</option>';
+  facilityPickerWrap.classList.remove('on');
+  patternSelect.innerHTML='<option>Select a station first</option>';
+  updateStationCard(null);
+  updatePatternDetails(null);
+  renderTowers([]);
+  arraySummary.innerHTML='<b>Array:</b> ---';
+  towerHint.textContent='Select a station and pattern to view tower data.';
+  call.value=''; lat.value=''; lon.value=''; freq.value=''; power.value=''; rms1.value='0';
+  monitorBearing.value=''; monitorDistance.value='';
+  monitorStatus.textContent='Select a station and pattern before setting a monitor point.';
+  liveBtn.disabled=true;
+  polarBtn.disabled=true;
+  monitorBearing.disabled=true;
+  monitorDistance.disabled=true;
+  setMonitorBtn.disabled=true;
+  digFreq.textContent='---';
+  clearMeasurement();
+}
+function addButtonZoomControl(){
+  const ButtonZoom=L.Control.extend({
+    options:{position:'topleft'},
+    onAdd:function(){
+      const c=L.DomUtil.create('div','leaflet-bar leaflet-control');
+      const zin=L.DomUtil.create('button','',c);
+      const zout=L.DomUtil.create('button','',c);
+      [zin,zout].forEach(b=>{
+        b.type='button';
+        b.style.display='block';
+        b.style.width='30px';
+        b.style.height='30px';
+        b.style.padding='0';
+        b.style.border='0';
+        b.style.background='#fff';
+        b.style.color='#000';
+        b.style.font='bold 22px/30px Arial,Helvetica,sans-serif';
+        b.style.cursor='pointer';
+      });
+      zin.textContent='+';
+      zout.textContent='-';
+      zin.title='Zoom in';
+      zout.title='Zoom out';
+      zin.style.borderBottom='1px solid #ccc';
+      L.DomEvent.disableClickPropagation(c);
+      L.DomEvent.disableScrollPropagation(c);
+      L.DomEvent.on(zin,'click',e=>{L.DomEvent.preventDefault(e); map.zoomIn();});
+      L.DomEvent.on(zout,'click',e=>{L.DomEvent.preventDefault(e); map.zoomOut();});
+      return c;
+    }
+  });
+  map.addControl(new ButtonZoom());
+}
+
+let osmBaseLayer=null, esriTopoLayer=null, activeBaseLayer=null;
+
+function getEsriTopoLayer(){
+  if(esriTopoLayer) return esriTopoLayer;
+  if(typeof window.makeEsriTopoLayer!=='function') return null;
+  esriTopoLayer=window.makeEsriTopoLayer();
+  return esriTopoLayer;
+}
+
+function switchBasemap(name, selectEl){
+  const wantTopo=(name==='topo');
+  const nextLayer=wantTopo ? getEsriTopoLayer() : osmBaseLayer;
+
+  if(!nextLayer){
+    if(selectEl) selectEl.value='osm';
+    return;
+  }
+
+  if(activeBaseLayer && map.hasLayer(activeBaseLayer)){
+    map.removeLayer(activeBaseLayer);
+  }
+
+  activeBaseLayer=nextLayer;
+  activeBaseLayer.addTo(map);
+
+  requestAnimationFrame(()=>map.invalidateSize(true));
+  setTimeout(()=>map.invalidateSize(true),150);
+}
+
+function addBasemapControl(){
+  const BasemapControl=L.Control.extend({
+    options:{position:'topright'},
+    onAdd:function(){
+      const c=L.DomUtil.create('div','leaflet-bar leaflet-control mobileBasemapControl');
+      c.style.background='#fff';
+      c.style.padding='6px 8px';
+      c.style.borderRadius='4px';
+      c.style.boxShadow='0 1px 5px rgba(0,0,0,.35)';
+      c.style.font='14px Arial,Helvetica,sans-serif';
+
+      const label=L.DomUtil.create('label','',c);
+      label.appendChild(document.createTextNode('Map: '));
+
+      const sel=L.DomUtil.create('select','',label);
+      sel.style.font='14px Arial,Helvetica,sans-serif';
+      sel.setAttribute('autocomplete','off');
+      sel.id='basemapSelect';
+
+      const osmOpt=document.createElement('option');
+      osmOpt.value='osm';
+      osmOpt.textContent='OSM';
+      sel.appendChild(osmOpt);
+
+      const topoOpt=document.createElement('option');
+      topoOpt.value='topo';
+      topoOpt.textContent='Topo';
+      sel.appendChild(topoOpt);
+
+      sel.value='topo';
+
+      L.DomEvent.disableClickPropagation(c);
+      L.DomEvent.disableScrollPropagation(c);
+      L.DomEvent.on(sel,'change',()=>switchBasemap(sel.value,sel));
+
+      window.addEventListener('esriTopoReady',()=>{
+        if(sel.value==='topo' && activeBaseLayer===osmBaseLayer){
+          switchBasemap('topo',sel);
+        }
+      });
+
+      return c;
+    }
+  });
+  map.addControl(new BasemapControl());
+}
+
+function init(){
+  // This page uses stationary panels. There is no document scroll or
+  // iPhone-specific map height calculation.
+  const iosPhone=/iPhone|iPod/.test(navigator.userAgent);
+  map=L.map('map',{
+    zoomControl:false,
+    dragging:true,
+    touchZoom:true,
+    tapHold:!iosPhone
+  }).setView([40.1,-82.9],7);
+  addButtonZoomControl();
+
+  osmBaseLayer=L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:19,attribution:'(c) OpenStreetMap contributors'}
+  );
+  activeBaseLayer=osmBaseLayer;
+  osmBaseLayer.addTo(map);
+
+  // OSM-only GPS test: no basemap selector.
+  // Keep GPS button taps from selecting a map monitor point.
+  L.DomEvent.disableClickPropagation(document.getElementById('gpsOverlay'));
+  L.DomEvent.disableScrollPropagation(document.getElementById('gpsOverlay'));
+
+  initBlankState();
+  map.on('click',e=>{if(gpsWatchId!==null) stopGpsTracking('GPS paused  /  map point selected'); if(currentStationData) updatePoint([e.latlng.lat,e.latlng.lng]);});
+  map.on('dragstart',()=>{if(gpsWatchId!==null){gpsFollow=false; updateGpsFollowControl();}});
+
+  // Resize Leaflet only when its actual layout rectangle changes.
+  // Search results and orientation changes can both change this rectangle.
+  let mapSizeFrame=0;
+  if(typeof ResizeObserver==='function'){
+    const observer=new ResizeObserver(()=>{
+      if(mapSizeFrame) return;
+      mapSizeFrame=requestAnimationFrame(()=>{
+        mapSizeFrame=0;
+        map.invalidateSize({pan:false});
+      });
+    });
+    observer.observe(document.querySelector('.mapPanel'));
+  }
+  setTimeout(()=>map.invalidateSize({pan:false}),100);
+}
+
+// Mobile prototype: only compact UI controls are active.
+resetBtn.onclick=()=>{clearMeasurement();};
+document.getElementById('clearMarkerBtn').onclick=()=>{clearMeasurement();};
+searchBtn.onclick=searchFacilities; stationSearch.addEventListener('keydown',e=>{if(e.key==='Enter') searchFacilities()}); facilitySelect.onchange=()=>selectFacility(facilitySelect.value); patternSelect.onchange=()=>selectPatternIndex(patternSelect.value);
+groundModeBtn.onclick=()=>{groundModeOn=!groundModeOn;refreshGroundMode();drawContours();};
+document.getElementById('patternToggle').addEventListener('click',e=>{
+  const btn=e.currentTarget;
+  btn.setAttribute('aria-pressed',String(btn.getAttribute('aria-pressed')!=='true'));
+  drawPattern();
+});
+contourInputs.forEach(c=>document.getElementById(c.id).addEventListener('click',e=>{
+  const btn=e.currentTarget;
+  btn.setAttribute('aria-pressed',String(btn.getAttribute('aria-pressed')!=='true'));
+  drawContours();
+}));
+window.addEventListener('m3ResearchReady',()=>{if(groundModeOn&&lastPoint)updatePoint(lastPoint);if(groundModeOn)drawContours();});
+['lat','lon'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{
+  resetSite();
+  if(targetMarker) setMonitorPointFromInputs(false);
+}));
+['freq','rms1'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{
+  resetSite();
+  if(targetMarker) updatePoint([+tlat.value,+tlon.value]);
+}));
+
+// iPad Cellular: foreground GPS input into the unchanged monitor-point model.
+// Geolocation is browser-permission based and requires HTTPS (or localhost).
+let gpsWatchId=null, gpsPosition=null, gpsFollow=true, gpsLastCalculated=null, gpsLastCalcAt=0;
+let gpsAccuracyLayer=null, gpsLocationLayer=null;
+const gpsBtn=document.getElementById('gpsBtn');
+const gpsState=document.getElementById('gpsState');
+const gpsFollowBtn=document.getElementById('gpsFollowBtn');
+function updateGpsFollowControl(){
+  gpsFollowBtn.disabled = !gpsPosition;
+  gpsFollowBtn.classList.toggle('active',gpsWatchId!==null && gpsFollow);
+  gpsFollowBtn.textContent = gpsFollow ? 'Following' : 'Recenter';
+}
+function stopGpsTracking(message){
+  if(gpsWatchId!==null && navigator.geolocation)navigator.geolocation.clearWatch(gpsWatchId);
+  gpsWatchId=null;
+  gpsBtn.classList.remove('active');
+  gpsBtn.textContent='Start GPS';
+  gpsState.textContent=message||'GPS stopped';
+  updateGpsFollowControl();
+}
+function updateGpsPosition(position){
+  if(gpsWatchId===null)return;
+  const {latitude,longitude,accuracy}=position.coords;
+  if(!Number.isFinite(latitude)||!Number.isFinite(longitude))return;
+  const pt=[latitude,longitude];
+  gpsPosition=pt;
+  const accuracyMeters=Number.isFinite(accuracy)?Math.round(accuracy):null;
+  gpsState.textContent=accuracyMeters!==null?`GPS +/-${accuracyMeters} m`:'GPS position received';
+  if(!gpsAccuracyLayer){
+    gpsAccuracyLayer=L.circle(pt,{radius:Math.max(accuracy||0,1),color:'#1765a7',weight:1,fillColor:'#4ba3ed',fillOpacity:0.1,interactive:false}).addTo(map);
+  } else gpsAccuracyLayer.setLatLng(pt).setRadius(Math.max(accuracy||0,1));
+  if(!gpsLocationLayer){
+    gpsLocationLayer=L.circleMarker(pt,{radius:9,color:'#fff',weight:3,fillColor:'#1869bb',fillOpacity:1,interactive:false}).addTo(map);
+  } else gpsLocationLayer.setLatLng(pt);
+  if(gpsFollow) map.panTo(pt,{animate:false});
+  updateGpsFollowControl();
+  if(!currentStationData)return;
+  // Keep geographic/groundwave work bounded during frequent GPS reports.
+  const now=Date.now();
+  const metersMoved=gpsLastCalculated?distBear(gpsLastCalculated,pt)[0]*1000:Infinity;
+  const elapsed=now-gpsLastCalcAt;
+  if(gpsLastCalculated && (elapsed<2000 || (metersMoved<15 && elapsed<12000)))return;
+  gpsLastCalculated=pt;
+  gpsLastCalcAt=now;
+  updatePoint(pt);
+}
+function startGpsTracking(){
+  if(!navigator.geolocation){gpsState.textContent='Geolocation unavailable';return;}
+  if(!window.isSecureContext){gpsState.textContent='GPS requires HTTPS or localhost';return;}
+  gpsBtn.disabled=true;
+  gpsState.textContent='Requesting location...';
+  gpsFollow=true;
+  gpsLastCalculated=null;
+  let newId;
+  try{
+    newId=navigator.geolocation.watchPosition(
+      position=>{gpsBtn.disabled=false;updateGpsPosition(position);},
+      error=>{
+        gpsBtn.disabled=false;
+        const message=error.code===1?'Location permission denied':error.code===2?'Location unavailable':'Location timed out';
+        if(error.code===1){stopGpsTracking(message);}else gpsState.textContent=message;
+      },
+      {enableHighAccuracy:true,maximumAge:1000,timeout:15000}
+    );
+  }catch(err){gpsBtn.disabled=false;gpsState.textContent='Unable to start GPS';return;}
+  gpsWatchId=newId;
+  gpsBtn.disabled=false;
+  gpsBtn.classList.add('active');
+  gpsBtn.textContent='Stop GPS';
+  updateGpsFollowControl();
+}
+gpsBtn.onclick=()=> gpsWatchId===null ? startGpsTracking() : stopGpsTracking();
+gpsFollowBtn.onclick=()=>{
+  if(!gpsPosition)return;
+  gpsFollow=true;
+  map.panTo(gpsPosition);
+  updateGpsFollowControl();
+};
+window.addEventListener('pagehide',()=>{if(gpsWatchId!==null)stopGpsTracking();});
+init();
+loadFacilityIndex();
+loadCanadaIsedOverlay().catch(e=>console.warn('Canadian ISED overlay unavailable; continuing with LMS data.',e));
+</script>
+
+<script type="module" id="m3SelfContainedResearchModule">
+/* Experimental M-3 ground loss: single-file Google Sites deployment.
+ * Geographic conductivity data loads from experimental GitHub m3v2 GeoJSON.
+ * Homogeneous and Kirke propagation mathematics remain inline and unchanged.
+ */
+const GroundwaveEngine = (() => {
+/* FCC M-3 Groundwave Research: independent browser port of the frozen Python
+ * uniform_groundwave_research.py and ntia_formulation_check.py, and Kirke.
+ * No empirical correction, interpolation tables, or change to Python baseline.
+ * Special-function evaluation: Airy derivative-zero Taylor continuation;
+ * complex Faddeeva: Al Azah & Chandler-Wilde (2021) modified trapezoidal quadrature (MIT).
+ */
+const PI=Math.PI, SQPI=Math.sqrt(PI), C0=299792458, EPS0=8.8541878128e-12, A_KM=6371;
+const c=(r,i=0)=>[r,i], cv=z=>Array.isArray(z)?z:[z,0];
+const plus=(a,b)=>{a=cv(a);b=cv(b);return [a[0]+b[0],a[1]+b[1]]};
+const neg=a=>[-a[0],-a[1]];
+const minus=(a,b)=>plus(a,neg(cv(b)));
+const mul=(a,b)=>{a=cv(a);b=cv(b);return [a[0]*b[0]-a[1]*b[1],a[0]*b[1]+a[1]*b[0]]};
+const abs=a=>Math.hypot(a[0],a[1]);
+const div=(a,b)=>{a=cv(a);b=cv(b);const den=b[0]*b[0]+b[1]*b[1];return [(a[0]*b[0]+a[1]*b[1])/den,(a[1]*b[0]-a[0]*b[1])/den]};
+const exp=a=>{a=cv(a);let r=Math.exp(a[0]);return [r*Math.cos(a[1]),r*Math.sin(a[1])]};
+const sqrt=a=>{a=cv(a);const r=abs(a);return [Math.sqrt(Math.max(0,(r+a[0])/2)),Math.sign(a[1]||1)*Math.sqrt(Math.max(0,(r-a[0])/2))]};
+const pow=(a,n)=>{let r=c(1),v=cv(a); for(let k=0;k<n;k++)r=mul(r,v);return r};
+const I=c(0,1);
+const ROT=c(-0.5,Math.sqrt(3)/2), ROTINV=c(-0.5,-Math.sqrt(3)/2);
+// Airy Ai' roots. Universal dimensionless zeros are *not* propagation tables;
+// they anchor a direct Taylor evaluation of Ai and Ai' for modal root solving.
+const AIRY_DERIV_ROOTS = [
+-1.0187929716474715,-3.2481975821798375,-4.8200992111787384,-6.1633073556393247,
+-7.3721772550496336,-8.4884867340197214,-9.5354490524335471,-10.5276603969574065,
+-11.4750566334802446,-12.3847883718457474,-13.2622189616652122,-14.1115019704629958,
+-14.9359371967205181,-15.7382013736925401,-16.5205038254337957,-17.2846950502164347,
+-18.0323446225043966,-18.7647984376659558,-19.4832216565672312,-20.1886315094633737,
+-20.8819227555167366,-21.5638877231989738,-22.2352322853489142,-22.8965887388746232,
+-23.5485262959288058,-24.1915597095263557,-24.8261564259211553,-25.4527425617776508,
+-26.0717079351739152,-26.6834103283224522,-27.2881791215239851,-27.8863184087684601,
+-28.4781096831022786,-29.0638141626381952,-29.6436748146320177,-30.2179181244685751,
+-30.7867556480125053,-31.3503853790830362,-31.9089929584304670,-32.4627527462384791
+];
+// Use polynomial solution of y''=(z0+h)y with y(z0)=1, y'(z0)=0.
+// The scale drops out of the Robin root condition and stays well conditioned
+// because each root is sought within roughly 1.3 of its Ai' zero.
+function airyNearZero(z,z0){
+  const h=minus(z,c(z0)), a=[c(1),c(0)];
+  let y=c(1),dy=c(0),hn=c(1);
+  for(let n=0;n<75;n++){
+    if(n>=2){a[n]=div(plus(mul(c(z0),a[n-2]),n>=3?a[n-3]:c(0)),c(n*(n-1)));}
+    if(n>0){dy=plus(dy,mul(mul(c(n),a[n]),div(hn,h)));}
+    y=plus(y,mul(a[n],hn));
+    hn=mul(hn,h);
+    if(n>20 && abs(mul(a[n],hn))<1e-16*Math.max(1,abs(y)))break;
+  }
+  return [y,dy];
+}
+// Revised Horner Airy Taylor (avoids derivative division when h=0).
+function airyAt(z,z0){
+  let a0=c(1),a1=c(0),arr=[a0,a1];
+  for(let n=2;n<75;n++)arr.push(div(plus(mul(c(z0),arr[n-2]),n>=3?arr[n-3]:c(0)),c(n*(n-1))));
+  let val=c(0),der=c(0),h=minus(z,c(z0));
+  for(let n=arr.length-1;n>=0;n--){der=plus(mul(der,h),val); val=plus(mul(val,h),arr[n]);}
+  return [val,der];
+}
+function rootFor(q,z0){
+  let z=c(z0);
+  for(let j=1;j<=40;j++){
+    const Q=mul(mul(q,c(j/40)),ROT);
+    let converged=false;
+    for(let it=0;it<60;it++){
+      let [a,ap]=airyAt(z,z0);
+      const num=minus(ap,mul(Q,a));
+      const den=minus(mul(z,a),mul(Q,ap));
+      let dz=div(num,den),r=abs(dz);
+      if(!Number.isFinite(r))throw Error('Airy Newton nonfinite');
+      if(r>0.6)dz=mul(dz,c(0.6/r));
+      z=minus(z,dz);
+      if(abs(dz)<2e-12){converged=true;break;}
+    }
+    if(!converged)throw Error('Airy Newton failed');
+  }
+  return mul(z,ROT);
+}
+const modeCache=new Map();
+function modalRoots(q,n=40){
+  let key=`${q[0].toPrecision(14)}:${q[1].toPrecision(14)}:${n}`;
+  if(modeCache.has(key))return modeCache.get(key);
+  const roots=AIRY_DERIV_ROOTS.slice(0,n).map(z=>rootFor(q,z));
+  if(roots.some(z=>!Number.isFinite(z[0])||!Number.isFinite(z[1])||z[1]>=0))throw Error('Invalid spherical mode');
+  modeCache.set(key,roots);
+  if(modeCache.size>256)modeCache.delete(modeCache.keys().next().value);
+  return roots;
+}
+// Faddeeva w(z), upper half-plane, modified midpoint / trapezium formula.
+// After M. Al Azah and S.N. Chandler-Wilde (2021), N=11. MIT licensed.
+function wofz(z){
+  let [xr,yi]=z;
+  const xneg=xr<0,yneg=yi<0,flip=xneg!==yneg;
+  // Normalize via w(-conj(z))=conj(w(z)) and w(-z)=2exp(-z^2)-w(z).
+  const original=z;
+  if(xneg){xr=-xr;yi=-yi;}
+  if(flip)yi=-yi;
+  let zz=c(xr,yi),N=11,h=Math.sqrt(PI/(N+1)),H=PI/h, z2=mul(zz,zz);
+  let az=mul(c(0,2/H),zz),sum=c(0);
+  const buff=Math.abs(xr/h-Math.floor(xr/h)-0.5);
+  const mode=yi>=Math.max(xr,H)?1:(yi<xr&&buff<=0.25?2:3);
+  if(mode===2){
+    for(let n=1;n<=N;n++){let t=h*n;sum=plus(sum,div(c(Math.exp(-t*t)),minus(z2,c(t*t))));}
+    let ch=div(c(2),mul(exp(z2),minus(c(1),exp(mul(c(0,-2*H),zz)))));
+    sum=plus(plus(div(c(0,1/H),zz),mul(az,sum)),ch);
+  }else{
+    for(let n=0;n<=N;n++){let t=h*(n+0.5);sum=plus(sum,div(c(Math.exp(-t*t)),minus(z2,c(t*t))));}
+    sum=mul(az,sum);
+    if(mode===3){let ch=div(c(2),mul(exp(z2),plus(c(1),exp(mul(c(0,-2*H),zz)))));sum=plus(sum,ch);}
+  }
+  if(flip)sum=c(sum[0],-sum[1]);
+  if(yneg)sum=minus(mul(c(2),exp(neg(mul(original,original)))),sum);
+  return sum;
+}
+function envParams(fkhz,sigma,epsilon=15,earthFactor=4/3){
+  const f=fkhz*1000,k=2*PI*f/C0*1000,a=A_KM*earthFactor;
+  const nu=Math.cbrt(a*k/2),eta=c(epsilon,-(sigma/1000)/(2*PI*f*EPS0));
+  const delta=div(sqrt(minus(eta,c(1))),eta);
+  const q=mul(mul(c(0,-1),c(nu)),delta);
+  return {k,a,nu,q,delta};
+}
+function shortField(fkhz,sigma,d,epsilon=15,earthFactor=4/3){
+  const {k,a,nu,q,delta}=envParams(fkhz,sigma,epsilon,earthFactor);
+  const qi=mul(mul(c(-0.5,0.5),c(Math.sqrt(k*d))),delta), p=mul(qi,qi);
+  const F=plus(c(1),mul(mul(c(0,SQPI),qi),wofz(qi)));
+  let g;
+  if(abs(q)>0.1){
+    const term1=minus(minus(c(1),mul(mul(c(0,SQPI),sqrt(p)),c(1))),mul(plus(c(1),mul(c(2),p)),F));
+    // Important: Python uses sqrt(pi*p), principal complex sqrt (not sqrt(pi)*sqrt(p) variant).
+    const partA=minus(c(1),mul(mul(c(0,SQPI),sqrt(p)),minus(c(1),p)));
+    const partB=plus(minus(partA,mul(c(2),p)),mul(c(5/6),mul(p,p)));
+    const term2=plus(partB,mul(minus(mul(c(0.5),mul(p,p)),c(1)),F));
+    g=plus(plus(F,div(term1,mul(c(4),pow(q,3)))),div(term2,mul(c(4),pow(q,6))));
+  }else{
+    const q3=pow(q,3),q6=pow(q,6),q9=pow(q,9),j=I;
+    const cf=[c(1),c(0,-SQPI),c(-2),mul(c(0,SQPI),plus(c(1),div(c(1),mul(c(4),q3)))),mul(c(4/3),plus(c(1),div(c(1),mul(c(2),q3)))),mul(c(0,-SQPI/4),plus(c(1),div(c(3),mul(c(4),q3)))),mul(c(-8/15),plus(plus(c(1),div(c(1),q3)),div(c(7),mul(c(32),q6)))),mul(c(0,SQPI/6),plus(plus(c(1),div(c(5),mul(c(4),q3))),div(c(27),mul(c(32),q6)))),mul(c(16/105),plus(plus(c(1),div(c(3),mul(c(2),q3))),div(c(27),mul(c(32),q6)))),mul(c(0,-SQPI/24),plus(plus(plus(c(1),div(c(7),mul(c(4),q3))),div(c(5),mul(c(4),q6))),div(c(21),mul(c(64),q9))))];
+    const x=d/a*nu,z=mul(mul(c(Math.SQRT1_2,Math.SQRT1_2),q),c(Math.sqrt(x)));
+    g=c(0); for(let n=cf.length-1;n>=0;n--)g=plus(mul(g,z),cf[n]);
+  }
+  return abs(g)*100/d;
+}
+function longField(fkhz,sigma,d,epsilon=15,earthFactor=4/3){
+  const {a,nu,q}=envParams(fkhz,sigma,epsilon,earthFactor),x=nu*d/a,roots=modalRoots(q,40),q2=mul(q,q);
+  let g=c(0);
+  for(let t of roots)g=plus(g,div(exp(mul(c(0,-x),t)),minus(t,q2)));
+  return 100/d*Math.sqrt(PI*x)*abs(g);
+}
+function uniformGroundwave(fkhz,sigma,d,epsilon=15,earthFactor=4/3){
+  if(![fkhz,sigma,d,epsilon,earthFactor].every(x=>Number.isFinite(x)&&x>0))throw Error('Invalid homogeneous inputs');
+  const crossover=80/Math.cbrt(fkhz/1000);
+  const field=d<crossover?shortField(fkhz,sigma,d,epsilon,earthFactor):longField(fkhz,sigma,d,epsilon,earthFactor);
+  if(!(field>0&&Number.isFinite(field)))throw Error('Invalid groundwave field');
+  return {field_mv_m:field,additional_loss_db:-20*Math.log10(field/(100/d)),inverse_distance_mv_m:100/d,method:d<crossover?'flat_earth_curvature_corrected':'spherical_residue_series',crossover_km:crossover};
+}
+function kirkeGroundwave(fkhz,sections){
+  if(!sections.length)throw Error('Empty groundwave sections');
+  const cache=new Map();
+  const curve=(s,d)=>{if(d<=0)throw Error('Invalid positive distance');let key=`${s.conductivity_mS_m}/${s.epsilon_r}/${d}`;if(!cache.has(key))cache.set(key,uniformGroundwave(fkhz,s.conductivity_mS_m,d,s.epsilon_r).field_mv_m);return cache.get(key);};
+  const inverse=(s,target,guess)=>{
+    let lo=0.001,hi=Math.min(3000,Math.max(1,guess));if(curve(s,lo)<target)throw Error('Near field range exceeded');
+    while(curve(s,hi)>target){if(hi>=3000)throw Error('Equivalent distance beyond model');hi=Math.min(3000,hi*2);}
+    for(let n=0;n<56;n++){let mid=(lo+hi)/2;if(curve(s,mid)>target)lo=mid;else hi=mid;if(hi-lo<1e-9)break;}
+    return (lo+hi)/2;
+  };
+  let actual=0,equiv=0,prior=null,refField=null,transitions=[];
+  for(let s of sections){
+    if(!(s.length_km>0&&s.conductivity_mS_m>0&&s.epsilon_r>0))throw Error('Invalid section');
+    if(prior&&(prior.conductivity_mS_m!==s.conductivity_mS_m||prior.epsilon_r!==s.epsilon_r)){
+      const boundary=curve(prior,equiv),old=equiv;
+      equiv=inverse(s,boundary,equiv);
+      transitions.push({actual_km:actual,from_conductivity_ms_m:prior.conductivity_mS_m,to_conductivity_ms_m:s.conductivity_mS_m,field_mv_m:boundary,equivalent_distance_km:equiv,old_equivalent_distance_km:old});
+    }
+    actual+=s.length_km;equiv+=s.length_km;refField=curve(s,equiv); prior=s;
+  }
+  return {actual_distance_km:actual,field_mv_m:refField,additional_loss_db:-20*Math.log10(refField/(100/actual)),equivalent_distance_km:equiv,transitions};
+}
+const _test={wofz,airyAt,rootFor,modalRoots,envParams,shortField,longField};
+
+return {uniformGroundwave, kirkeGroundwave};
+})();
+const M3GeographicEngine = (() => {
+/* Research browser port of m3_path_profile.py (spherical great-circle mode).
+ * Polygon boundaries from experimental m3v2 GeoJSON. Original 236 preserved.
+ * Unknown water material remains fail-closed. Zone 99 8 mS/m baseline
+ * is accepted for research use while keeping its provisional source label.
+ */
+const R=6371.0088, RAD=Math.PI/180, DEG=180/Math.PI, GRID=.5;
+function pointAt(origin,bearing,d){
+  const la=origin[0]*RAD,lo=origin[1]*RAD,br=bearing*RAD,ad=d/R;
+  const lat2=Math.asin(Math.sin(la)*Math.cos(ad)+Math.cos(la)*Math.sin(ad)*Math.cos(br));
+  const lon2=lo+Math.atan2(Math.sin(br)*Math.sin(ad)*Math.cos(la),Math.cos(ad)-Math.sin(la)*Math.sin(lat2));
+  return [lat2*DEG, ((lon2*DEG+540)%360)-180];
+}
+function distanceBearing(a,b){
+ const la=a[0]*RAD,lb=b[0]*RAD,dl=(b[1]-a[1])*RAD;
+ const h=Math.sin((lb-la)/2)**2+Math.cos(la)*Math.cos(lb)*Math.sin(dl/2)**2;
+ const d=2*R*Math.asin(Math.min(1,Math.sqrt(h)));
+ const y=Math.sin(dl)*Math.cos(lb),x=Math.cos(la)*Math.sin(lb)-Math.sin(la)*Math.cos(lb)*Math.cos(dl);
+ return [d,((Math.atan2(y,x)*DEG+360)%360)];
+}
+function bboxRing(r){let minx=Infinity,maxx=-Infinity,miny=Infinity,maxy=-Infinity;for(let [x,y] of r){minx=Math.min(minx,x);maxx=Math.max(maxx,x);miny=Math.min(miny,y);maxy=Math.max(maxy,y)}return [minx,miny,maxx,maxy];}
+const cell=(x,y)=>`${Math.floor(x/GRID)},${Math.floor(y/GRID)}`;
+function inRing(pt,ring){let [x,y]=pt,inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){let a=ring[i],b=ring[j];if(((a[1]>y)!==(b[1]>y)) && x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside;}
+function intersects(a,b,c,d){
+ let rx=b[0]-a[0],ry=b[1]-a[1],sx=d[0]-c[0],sy=d[1]-c[1];
+ let det=rx*sy-ry*sx;
+ if(Math.abs(det)<1e-15)return null;
+ let qx=c[0]-a[0],qy=c[1]-a[1];
+ let t=(qx*sy-qy*sx)/det,u=(qx*ry-qy*rx)/det;
+ return t>=0&&t<=1&&u>=0&&u<=1?t:null;
+}
+class M3Geography {
+ constructor(geojson){
+  if(geojson.type!=='FeatureCollection')throw Error('Expected FCC M-3 FeatureCollection');
+  // Experimental coastal trims can divide a source zone into disconnected
+  // MultiPolygon components. Flatten components for the existing polygon
+  // classifier while retaining their exact original properties and zone IDs.
+  this.features=geojson.features.flatMap(f=>{
+   const geometry=f.geometry;
+   const components=geometry.type==='Polygon'?[geometry.coordinates]:
+      geometry.type==='MultiPolygon'?geometry.coordinates:null;
+   if(!components)throw Error('Unsupported M-3 geometry: '+geometry.type);
+   return components.map(rings=>({props:f.properties,rings,bbox:bboxRing(rings[0])}));
+  });
+  this.edges=[];this.grid=new Map();this.fallback=[];
+  for(let fi=0;fi<this.features.length;fi++){
+   const f=this.features[fi];
+   for(const ring of f.rings){
+    for(let j=1;j<ring.length;j++){
+     const a=ring[j-1],b=ring[j]; const id=this.edges.length;
+     this.edges.push([a,b]);
+     const ix0=Math.floor(Math.min(a[0],b[0])/GRID), ix1=Math.floor(Math.max(a[0],b[0])/GRID);
+     const iy0=Math.floor(Math.min(a[1],b[1])/GRID), iy1=Math.floor(Math.max(a[1],b[1])/GRID);
+     if((ix1-ix0+1)*(iy1-iy0+1)>1500){this.fallback.push(id);continue;}
+     for(let ix=ix0;ix<=ix1;ix++)for(let iy=iy0;iy<=iy1;iy++){
+      const key=`${ix},${iy}`; if(!this.grid.has(key))this.grid.set(key,[]);this.grid.get(key).push(id);
+     }
+    }
+   }
+  }
+ }
+ classify(lat,lon){
+  let matches=[];
+  for(let f of this.features){let [x0,y0,x1,y1]=f.bbox;if(lon<x0||lon>x1||lat<y0||lat>y1)continue;
+    if(inRing([lon,lat],f.rings[0]) && !f.rings.slice(1).some(r=>inRing([lon,lat],r)))matches.push(f.props);
+  }
+  if(matches.length!==1)return {zone_id:null,conductivity_mS_m:null,status:matches.length?'overlapping_polygons':'not_mapped',material:'unknown'};
+  const p=matches[0],sigma=p.conductivity_mS_m;
+  let material='land';
+  if(String(p.assignment_basis||'').startsWith('we7w_lake_erie_28')||String(p.assignment_basis||'').startsWith('lake_fragment_without_source_label')||p.assignment_basis==='adjacent_lake_erie_freshwater_analogy')material='freshwater';
+  else if(p.material==='seawater' && sigma===5000 && p.relative_permittivity===80)material='seawater';
+  else if(sigma!==null&&sigma>=1000)material='high_conductivity_water_candidate';
+  return {zone_id:p.id,conductivity_mS_m:sigma,status:p.status||'status_missing',material,assignment_basis:p.assignment_basis||null};
+ }
+ profile(origin,destination,maxStepKm=0.5){
+  const [total,bearing]=distanceBearing(origin,destination);
+  if(!(total>0&&total<20050))throw Error('Invalid distance');
+  const n=Math.max(1,Math.ceil(total/maxStepKm)),coords=[];
+  for(let i=0;i<=n;i++){let p=pointAt(origin,bearing,total*i/n);coords.push([p[1],p[0]]);}
+  coords[coords.length-1]=[destination[1],destination[0]];
+  let crossings=[0,total],visits=new Set();
+  for(let i=0;i<n;i++){
+    const a=coords[i],b=coords[i+1],minx=Math.min(a[0],b[0]),maxx=Math.max(a[0],b[0]),miny=Math.min(a[1],b[1]),maxy=Math.max(a[1],b[1]);
+    const possible=new Set(this.fallback);
+    for(let ix=Math.floor(minx/GRID);ix<=Math.floor(maxx/GRID);ix++)for(let iy=Math.floor(miny/GRID);iy<=Math.floor(maxy/GRID);iy++){
+      for(let idx of this.grid.get(`${ix},${iy}`)||[])possible.add(idx);
+    }
+    for(let idx of possible){let [c,d]=this.edges[idx],t=intersects(a,b,c,d);if(t!==null)crossings.push(total*(i+t)/n);}
+  }
+  crossings.sort((a,b)=>a-b);
+  let unique=[crossings[0]];
+  for(let x of crossings.slice(1))if(x-unique[unique.length-1]>0.00001)unique.push(x);
+  unique[unique.length-1]=total;
+  let segments=[];
+  for(let i=1;i<unique.length;i++){
+    let a=unique[i-1],b=unique[i];if(b-a<=0)continue;
+    const pt=pointAt(origin,bearing,(a+b)/2),info=this.classify(...pt);
+    let prev=segments[segments.length-1];
+    if(prev&&prev.zone_id===info.zone_id&&prev.conductivity_mS_m===info.conductivity_mS_m&&prev.status===info.status&&prev.material===info.material&&prev.assignment_basis===info.assignment_basis){prev.end_km=b;prev.length_km=b-prev.start_km;}
+    else segments.push({start_km:a,end_km:b,length_km:b-a,...info});
+  }
+  const unresolved=segments.filter(s=>s.conductivity_mS_m==null), pendingWater=segments.filter(s=>s.material!=='land' && !(s.material==='freshwater' && s.conductivity_mS_m===28) && !(s.material==='seawater' && s.conductivity_mS_m===5000));
+  const hasMappedLake=segments.some(s=>s.material==='freshwater' && s.conductivity_mS_m===28);
+  const hasMarine=segments.some(s=>s.material==='seawater');
+  return {distance_km:total,initial_bearing_deg:bearing,segments,status:unresolved.length||pendingWater.length?'REVIEW_REQUIRED':hasMarine?'EXPERIMENTAL_MARINE_PATH':segments.some(s=>s.status==='provisional_baseline')?(hasMappedLake?'PROVISIONAL_MIXED_PATH':'PROVISIONAL_LAND_ONLY'):(hasMappedLake?'ASSIGNED_MIXED_PATH':'ASSIGNED_LAND_ONLY')};
+ }
+ sectionsForKirke(profile){
+  let sections=[];
+  for(let s of profile.segments){
+   if(!(s.conductivity_mS_m>0))throw Error(`Unassigned M-3 area at ${s.start_km.toFixed(2)} km`);
+   // FCC M-3 assigned Lake Erie at 28 mS/m: use the FCC 15-epsilon groundwave family.
+   // Reserve epsilon=80 for verified seawater (the 5000 mS/m FCC curve), not freshwater.
+   // No silent material substitution for other water candidates or unassigned polygons.
+   if(s.material==='freshwater' && s.conductivity_mS_m!==28)throw Error(`Unsupported freshwater assignment at ${s.start_km.toFixed(2)} km`);
+   if(s.material==='seawater' && s.conductivity_mS_m!==5000)throw Error(`Unsupported seawater assignment at ${s.start_km.toFixed(2)} km`);
+   if(s.material!=='land' && s.material!=='freshwater' && s.material!=='seawater')throw Error(`Unresolved M-3 material at ${s.start_km.toFixed(2)} km`);
+   if(s.status==='provisional_baseline' && !(s.assignment_basis==='zone99_source_8_land_baseline_with_external_lake_mask'&&s.conductivity_mS_m===8))throw Error(`Unresolved provisional zone ${s.zone_id}`);
+   const epsilon=s.material==='seawater'?80:15;
+   let prev=sections[sections.length-1];
+   if(prev&&prev.conductivity_mS_m===s.conductivity_mS_m&&prev.epsilon_r===epsilon)prev.length_km+=s.length_km;
+   else sections.push({length_km:s.length_km,conductivity_mS_m:s.conductivity_mS_m,epsilon_r:epsilon});
+  }
+  return sections;
+ }
+}
+
+return {M3Geography};
+})();
+const M3_GEOJSON_URL = 'https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/m3v3.geojson';
+try {
+  const response = await fetch(M3_GEOJSON_URL, {cache: 'no-store'});
+  if (!response.ok) throw new Error(`M-3 GeoJSON fetch failed: HTTP ${response.status}`);
+  const geography = new M3GeographicEngine.M3Geography(await response.json());
+  const marineCount=geography.features.filter(f=>f.props.material==='seawater' && f.props.conductivity_mS_m===5000 && f.props.relative_permittivity===80).length;
+  if(geography.features.length<237 || marineCount===0) throw Error('M-3 v2 marine geography missing or incompatible');
+  window.m3Research = {
+    geography,
+    kirkeGroundwave: GroundwaveEngine.kirkeGroundwave,
+    uniformGroundwave: GroundwaveEngine.uniformGroundwave
+  };
+  window.dispatchEvent(new Event('m3ResearchReady'));
+  console.info(`GitHub M-3 v2 geographic data ready: ${geography.features.length} polygons (${marineCount} seawater), original reference solver.`);
+} catch (err) {
+  console.error('GitHub M-3 geographic data unavailable:', err);
+  window.m3ResearchLoadError = String(err);
+  window.dispatchEvent(new Event('m3ResearchReady'));
+}
+</script>
+
+</body>
+</html>
