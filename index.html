@@ -16,8 +16,8 @@ html,body { width:100%;height:100%;margin:0;padding:0;overflow:hidden;font-famil
 button,select,input { font:inherit; }
 button { cursor:pointer; }
 button:disabled { opacity:.45;cursor:default; }
-/* The map has a fixed height and the app does not fill the iframe. */
-.mobileApp { width:100%;height:auto;min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto 320px auto auto;overflow:hidden; }
+/* Standalone GPS test: expand map with viewport height, within fixed limits. */
+.mobileApp { width:100%;height:auto;min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto clamp(320px, calc(100dvh - 290px), 500px) auto auto;overflow:hidden; }
 .head { display:flex;align-items:center;gap:8px;min-width:0;min-height:38px;padding:5px 10px;background:var(--dark);color:#fff; }
 .headTitle { font-size:16px;font-weight:700;line-height:1.1;letter-spacing:-.3px; }
 .searchPanel { min-width:0;min-height:0;overflow:hidden;background:#fff;padding:5px 8px 3px;border-bottom:1px solid var(--line); }
@@ -1126,12 +1126,10 @@ function init(){
   activeBaseLayer=osmBaseLayer;
   osmBaseLayer.addTo(map);
 
-  addBasemapControl();
+  // OSM-only GPS test: no basemap selector.
   // Keep GPS button taps from selecting a map monitor point.
   L.DomEvent.disableClickPropagation(document.getElementById('gpsOverlay'));
   L.DomEvent.disableScrollPropagation(document.getElementById('gpsOverlay'));
-  const basemapSelect=document.getElementById('basemapSelect');
-  if(typeof window.makeEsriTopoLayer==='function') switchBasemap('topo',basemapSelect);
 
   initBlankState();
   map.on('click',e=>{if(gpsWatchId!==null) stopGpsTracking('GPS paused  /  map point selected'); if(currentStationData) updatePoint([e.latlng.lat,e.latlng.lng]);});
