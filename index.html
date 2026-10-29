@@ -55,7 +55,7 @@ select { appearance:auto;width:100%;min-width:0;height:29px;margin:0 0 3px;borde
 .bottom { min-height:0;background:#fff;border-top:1px solid #dbe2e8;padding:2px 5px 3px; }
 .layerRow { display:flex;align-items:center;gap:3px;min-width:0;width:100%; }
 .calcNote { margin:3px 0 0;text-align:center;font-size:9px;line-height:1.2;color:#627689; }
-.btn { flex:1 1 0;min-width:0;min-height:24px;padding:0 1px;border-radius:5px;border:1px solid #c7d5e2;background:#f4f7fa;color:#193a55;font-size:10px;font-weight:650;white-space:nowrap; }
+.btn { flex:1 1 0;min-width:0;min-height:24px;padding:0 1px;border-radius:5px;border:1px solid #c7d5e2;background:#f4f7fa;color:#193a55;font-size:9px;font-weight:650;white-space:nowrap; }
 .btn[aria-pressed="true"] { color:#1465a8;background:#e6f1fa;border-color:#6fb1e6; }
 .btn#groundModeBtn[aria-pressed="true"] { background:#e7f6ec;border-color:#8bcba5;color:#1d7040; }
 /* GPS test controls occupy map space, not page height. */
@@ -110,6 +110,7 @@ select { appearance:auto;width:100%;min-width:0;height:29px;margin:0 0 3px;borde
     <div class="layerRow">
       <button type="button" id="groundModeBtn" class="btn" aria-pressed="true">Ground: ON</button>
       <button type="button" id="patternToggle" class="btn" aria-pressed="true">Pattern</button>
+      <button type="button" id="standardToggle" class="btn" aria-pressed="false" title="Toggle FCC standard radiation">Standard: OFF</button>
       <button type="button" id="contour05" class="btn" aria-pressed="false">0.5 mV/m</button>
       <button type="button" id="contour2" class="btn" aria-pressed="false">2 mV/m</button>
       <button type="button" id="clearMarkerBtn" class="btn" disabled>Clear</button>
@@ -169,6 +170,7 @@ console.info("AM Mobile Pattern Explorer prototype (c) 2026 Rob Peebles / W8LX.c
 var digEqPower=document.getElementById('digEqPower');
 var digEqPowerUnit=document.getElementById('digEqPowerUnit');
 const R=6371.0088; let map, txMarker, targetMarker, line, patternLayer, rangeLayers=[], live=false, needleAngle=-64, desiredAngle=-64, animStarted=false, selectedRange=100, lastPoint=null;
+let standardModeOn=false; const standardModeBtn=document.getElementById('standardToggle');
 let groundModeOn=true; const groundModeBtn=document.getElementById('groundModeBtn'); const meterMode=document.getElementById('meterMode'); const mapFieldMode=document.getElementById('mapFieldMode');
 const FACILITY_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_facilities_us_lms_geometry_master.json';
 const PATTERN_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_patterns_us_lms_geometry_master_grouped.json';
@@ -248,6 +250,14 @@ function getTowers(){
 function loadStationData(d){
   currentStationData=d;
   const st=d.station, p=d.pattern;
+  const standardAvailable=!!p.directional && (p.referenceRmsSource==='theoretical_rms' || p.referenceRmsSource==='theoretical_rms_fallback');
+  standardModeBtn.disabled=!standardAvailable;
+  if(!standardAvailable && standardModeOn){
+    standardModeOn=false;
+    standardModeBtn.textContent='Standard: OFF';
+    standardModeBtn.setAttribute('aria-pressed','false');
+  }
+  standardModeBtn.title=standardAvailable?'Toggle FCC standard radiation':(!p.directional?'Directional arrays only':'Theoretical RMS unavailable');
   liveBtn.disabled=false;
   polarBtn.disabled=false;
   monitorBearing.disabled=false;
@@ -287,7 +297,25 @@ function rmsRaw(){
   rmsCache=Math.sqrt(sumSq/Math.max(n,1))||1;
   return rmsCache;
 }
-function pFactor(b){return arrayRaw(b)/maxRaw()}             // relative display: peak = 1
+// FCC 73.150 standard radiation. Tower RSS is distinct from pattern RMS.
+function standardQ(){
+  if(!currentStationData?.pattern?.directional) return 0;
+  const eRms=Number(rms1.value), rawRms=rmsRaw();
+  if(!(eRms>0) || !(rawRms>0)) return NaN;
+  const rss=eRms/rawRms*Math.hypot(...getTowers().map(t=>t.ratio));
+  return Math.max(0.025*rss,10*Math.sqrt(Math.max(Number(power.value)||0,1)));
+}
+function theoreticalRadiation(b){return Number(rms1.value)*absolutePatternFactor(b);}
+function selectedRadiation(b){
+  const e=theoreticalRadiation(b);
+  return standardModeOn && currentStationData?.pattern?.directional ? 1.05*Math.hypot(e,standardQ()) : e;
+}
+function selectedPatternFactor(b){
+  if(!standardModeOn || !currentStationData?.pattern?.directional) return arrayRaw(b)/maxRaw();
+  const peak=1.05*Math.hypot(Number(rms1.value)*maxRaw()/rmsRaw(),standardQ());
+  return peak>0 ? selectedRadiation(b)/peak : 0;
+}
+function pFactor(b){return selectedPatternFactor(b)}             // relative display: peak = 1
 function absolutePatternFactor(b){
   const directional = !!currentStationData?.pattern?.directional;
   return directional ? (arrayRaw(b)/rmsRaw()) : (arrayRaw(b)/maxRaw());
@@ -302,8 +330,9 @@ function equivalentNdPowerWatts(bearing){
 
   // DA equivalent power is based on the RMS-normalized horizontal pattern:
   // Peq(theta) = Plicensed * [A(theta) / Arms]^2
-  const rrms=Math.max(rmsRaw(),1e-12);
-  const ratio=arrayRaw(bearing)/rrms;
+  const reference=Number(rms1.value);
+  if(!(reference>0)) return 0;
+  const ratio=selectedRadiation(bearing)/reference;
   return licensedW*ratio*ratio;
 }
 
@@ -385,7 +414,7 @@ function closePolarPattern(){polarModal.classList.remove('on');}
 function fieldAt(pt){
   const s=site(); let [d,b]=distBear(s,pt); d=Math.max(d,0.05);
   const pfv=absolutePatternFactor(b);
-  const eRef=(+rms1.value)*pfv/d; // existing independent theoretical FI
+  const eRef=selectedRadiation(b)/d; // selected theoretical or FCC standard FI
   let e=eRef, lossDb=0, groundError=null, m3Profile=null, calcMs=0, m3Inferred=false;
   if(groundModeOn){
     const start=performance.now();
@@ -418,7 +447,7 @@ function refreshGroundMode(){
  groundModeBtn.classList.toggle('groundOn',groundModeOn);
  groundModeBtn.setAttribute('aria-pressed',String(groundModeOn));
  mapFieldMode.textContent=groundModeOn?'M-3 FIELD':'FIELD';
- meterMode.textContent=groundModeOn?'M-3 ADJUSTED':'THEORETICAL (1/r)';
+  meterMode.textContent=groundModeOn?(standardModeOn?'STANDARD / M-3 ADJUSTED':'M-3 ADJUSTED'):(standardModeOn?'STANDARD (1/r)':'THEORETICAL (1/r)');
  meterMode.classList.toggle('active',groundModeOn);meterMode.classList.remove('error');
  if(lastPoint)updatePoint(lastPoint);
 }
@@ -477,7 +506,7 @@ function updatePoint(pt){
   monitorStatus.textContent=`Marker position: ${f.b.toFixed(1)} deg true, ${f.d.toFixed(2)} km.` +
     (groundModeOn?(f.groundError?` M-3 unavailable: ${f.groundError}.`:` M-3 loss ${f.lossDb.toFixed(2)} dB, ${f.calcMs.toFixed(1)} ms.`):'');
   meterMode.classList.toggle('error',!!f.groundError);
-  meterMode.textContent=f.groundError?'M-3 UNAVAILABLE':(groundModeOn?(f.m3Inferred?'M-3 INFERRED':'M-3 ADJUSTED'):'THEORETICAL (1/r)');
+  meterMode.textContent=f.groundError?'M-3 UNAVAILABLE':(groundModeOn?(f.m3Inferred?'M-3 INFERRED':(standardModeOn?'STANDARD / M-3 ADJUSTED':'M-3 ADJUSTED')):(standardModeOn?'STANDARD (1/r)':'THEORETICAL (1/r)'));
   document.getElementById('mapCoordinates').textContent=pt[0].toFixed(5)+', '+pt[1].toFixed(5);
   document.getElementById('clearMarkerBtn').disabled=false;
   mapDist.textContent=f.d.toFixed(1)+' km';
@@ -647,7 +676,7 @@ function contourFieldAt(b,d,outerExit){
       sections=geo.sectionsForKirke(route);
     }
     const model=window.m3Research.kirkeGroundwave(+freq.value,sections);
-    const eRef=(+rms1.value)*absolutePatternFactor(b)/d;
+    const eRef=selectedRadiation(b)/d;
     return eRef*Math.pow(10,-model.additional_loss_db/20);
   }catch(_){return NaN;}
 }
@@ -1158,6 +1187,15 @@ resetBtn.onclick=()=>{clearMeasurement();};
 document.getElementById('clearMarkerBtn').onclick=()=>{clearMeasurement();};
 searchBtn.onclick=searchFacilities; stationSearch.addEventListener('keydown',e=>{if(e.key==='Enter') searchFacilities()}); facilitySelect.onchange=()=>selectFacility(facilitySelect.value); patternSelect.onchange=()=>selectPatternIndex(patternSelect.value);
 groundModeBtn.onclick=()=>{groundModeOn=!groundModeOn;refreshGroundMode();drawContours();};
+standardModeBtn.onclick=()=>{
+  if(standardModeBtn.disabled) return;
+  standardModeOn=!standardModeOn;
+  standardModeBtn.textContent='Standard: '+(standardModeOn?'ON':'OFF');
+  standardModeBtn.setAttribute('aria-pressed',String(standardModeOn));
+  drawPattern();
+  drawContours();
+  refreshGroundMode();
+};
 document.getElementById('patternToggle').addEventListener('click',e=>{
   const btn=e.currentTarget;
   btn.setAttribute('aria-pressed',String(btn.getAttribute('aria-pressed')!=='true'));
