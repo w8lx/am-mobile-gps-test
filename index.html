@@ -57,6 +57,8 @@ select { appearance:auto;width:100%;min-width:0;height:29px;margin:0 0 3px;borde
 .calcNote { margin:3px 0 0;text-align:center;font-size:9px;line-height:1.2;color:#627689; }
 .btn { flex:1 1 0;min-width:0;min-height:24px;padding:0 1px;border-radius:5px;border:1px solid #c7d5e2;background:#f4f7fa;color:#193a55;font-size:9px;font-weight:650;white-space:nowrap; }
 .btn[aria-pressed="true"] { color:#1465a8;background:#e6f1fa;border-color:#6fb1e6; }
+/* Match the existing toolbar button font size. */
+.btn#standardToggle { font-size:9px; }
 .btn#groundModeBtn[aria-pressed="true"] { background:#e7f6ec;border-color:#8bcba5;color:#1d7040; }
 /* GPS test controls occupy map space, not page height. */
 .srHidden { display:none!important; }
@@ -110,7 +112,7 @@ select { appearance:auto;width:100%;min-width:0;height:29px;margin:0 0 3px;borde
     <div class="layerRow">
       <button type="button" id="groundModeBtn" class="btn" aria-pressed="true">Ground: ON</button>
       <button type="button" id="patternToggle" class="btn" aria-pressed="true">Pattern</button>
-      <button type="button" id="standardToggle" class="btn" aria-pressed="false" title="Toggle FCC standard radiation">Standard: OFF</button>
+      <button type="button" id="standardToggle" class="btn" aria-pressed="false" title="Toggle FCC standard radiation">THEO</button>
       <button type="button" id="contour05" class="btn" aria-pressed="false">0.5 mV/m</button>
       <button type="button" id="contour2" class="btn" aria-pressed="false">2 mV/m</button>
       <button type="button" id="clearMarkerBtn" class="btn" disabled>Clear</button>
@@ -254,7 +256,7 @@ function loadStationData(d){
   standardModeBtn.disabled=!standardAvailable;
   if(!standardAvailable && standardModeOn){
     standardModeOn=false;
-    standardModeBtn.textContent='Standard: OFF';
+    standardModeBtn.textContent='THEO';
     standardModeBtn.setAttribute('aria-pressed','false');
   }
   standardModeBtn.title=standardAvailable?'Toggle FCC standard radiation':(!p.directional?'Directional arrays only':'Theoretical RMS unavailable');
@@ -1190,7 +1192,7 @@ groundModeBtn.onclick=()=>{groundModeOn=!groundModeOn;refreshGroundMode();drawCo
 standardModeBtn.onclick=()=>{
   if(standardModeBtn.disabled) return;
   standardModeOn=!standardModeOn;
-  standardModeBtn.textContent='Standard: '+(standardModeOn?'ON':'OFF');
+  standardModeBtn.textContent=standardModeOn?'STD':'THEO';
   standardModeBtn.setAttribute('aria-pressed',String(standardModeOn));
   drawPattern();
   drawContours();
