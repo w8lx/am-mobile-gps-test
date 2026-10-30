@@ -39,7 +39,7 @@ select { appearance:auto;width:100%;min-width:0;height:29px;margin:0 0 3px;borde
 .mapPanel { position:relative;min-height:0;min-width:0;width:100%;background:#d2dae0;overflow:hidden; }
 #map { position:absolute;inset:0;width:100%;height:100%; }
 .leaflet-container { font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-.leaflet-control-attribution, .leaflet-control-attribution a, .maplibregl-ctrl-attrib, .maplibregl-ctrl-attrib a, .maplibregl-ctrl-attrib-inner { font-size:5px!important;line-height:1!important; }
+.leaflet-control-attribution, .leaflet-control-attribution a, .maplibregl-ctrl-attrib, .maplibregl-ctrl-attrib a, .maplibregl-ctrl-attrib-inner { font-size:9px!important;line-height:1!important; }
 .readouts { min-height:0;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1px;background:#d9e1e8;border-top:1px solid #d9e1e8; }
 .readout { background:#fff;padding:3px 6px;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:24px; }
 .readout .cap { font-size:9px;font-weight:750;color:#627689;letter-spacing:0;text-transform:uppercase;white-space:nowrap; }
@@ -62,10 +62,10 @@ select { appearance:auto;width:100%;min-width:0;height:29px;margin:0 0 3px;borde
 .btn#groundModeBtn[aria-pressed="true"] { background:#e7f6ec;border-color:#8bcba5;color:#1d7040; }
 /* GPS test controls occupy map space, not page height. */
 .srHidden { display:none!important; }
-.gpsOverlay { position:absolute;z-index:750;left:7px;bottom:18px;width:170px;max-width:calc(100% - 14px);padding:4px;background:rgba(255,255,255,.94);border:1px solid #91a6b8;border-radius:6px;box-shadow:0 1px 5px #0004; }
-.gpsOverlay .headerGps { display:block;font-size:10px;line-height:1.3;color:#193a55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px; }
-.gpsOverlay .gpsRow { display:flex;gap:4px; }
-.gpsOverlay .gpsRow .btn { min-height:27px;font-size:10px;padding:0 3px; }
+.gpsOverlay { position:absolute;z-index:750;left:7px;bottom:18px;width:136px;max-width:calc(100% - 14px);padding:3px;background:rgba(255,255,255,.94);border:1px solid #91a6b8;border-radius:6px;box-shadow:0 1px 5px #0004; }
+.gpsOverlay .headerGps { display:block;font-size:9px;line-height:1.3;color:#193a55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px; }
+.gpsOverlay .gpsRow { display:flex;gap:3px; }
+.gpsOverlay .gpsRow .btn { min-height:23px;font-size:9px;padding:0 2px; }
 .gpsOverlay .gpsRow .btn.primary { background:#1769b1;color:#fff;border-color:#1769b1; }
 
 .mobileBasemapControl { display:flex;align-items:center;max-width:calc(100vw - 80px);padding:1px 2px!important; }
@@ -112,7 +112,7 @@ select { appearance:auto;width:100%;min-width:0;height:29px;margin:0 0 3px;borde
     <div class="layerRow">
       <button type="button" id="groundModeBtn" class="btn" aria-pressed="true">Ground: ON</button>
       <button type="button" id="patternToggle" class="btn" aria-pressed="true">Pattern</button>
-      <button type="button" id="standardToggle" class="btn" aria-pressed="false" title="Toggle FCC standard radiation">THEO</button>
+      <button type="button" id="standardToggle" class="btn" aria-pressed="true" title="Toggle FCC standard radiation">STD</button>
       <button type="button" id="contour05" class="btn" aria-pressed="false">0.5 mV/m</button>
       <button type="button" id="contour2" class="btn" aria-pressed="false">2 mV/m</button>
       <button type="button" id="clearMarkerBtn" class="btn" disabled>Clear</button>
@@ -172,7 +172,7 @@ console.info("AM Mobile Pattern Explorer prototype (c) 2026 Rob Peebles / W8LX.c
 var digEqPower=document.getElementById('digEqPower');
 var digEqPowerUnit=document.getElementById('digEqPowerUnit');
 const R=6371.0088; let map, txMarker, targetMarker, line, patternLayer, rangeLayers=[], live=false, needleAngle=-64, desiredAngle=-64, animStarted=false, selectedRange=100, lastPoint=null;
-let standardModeOn=false; const standardModeBtn=document.getElementById('standardToggle');
+let standardModeOn=true; const standardModeBtn=document.getElementById('standardToggle');
 let groundModeOn=true; const groundModeBtn=document.getElementById('groundModeBtn'); const meterMode=document.getElementById('meterMode'); const mapFieldMode=document.getElementById('mapFieldMode');
 const FACILITY_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_facilities_us_lms_geometry_master.json';
 const PATTERN_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_patterns_us_lms_geometry_master_grouped.json';
