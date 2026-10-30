@@ -20,6 +20,14 @@ button:disabled { opacity:.45;cursor:default; }
 .mobileApp { width:100%;height:auto;min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto clamp(320px, calc(100dvh - 290px), 500px) auto auto;overflow:hidden; }
 .head { display:flex;align-items:center;gap:8px;min-width:0;min-height:38px;padding:5px 10px;background:var(--dark);color:#fff; }
 .headTitle { font-size:16px;font-weight:700;line-height:1.1;letter-spacing:-.3px; }
+.headReadme { margin-left:auto;flex:0 0 auto;border:1px solid #788c9e;border-radius:6px;background:#1e2d3f;color:#fff;font-size:12px;padding:5px 9px; }
+.readmeBackdrop { display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.64);align-items:center;justify-content:center;padding:16px; }
+.readmeBackdrop.on { display:flex; }
+.readmeDialog { width:min(560px,100%);max-height:85dvh;overflow:auto;background:#fffdf4;color:#102234;border:2px solid #8d7b4a;border-radius:10px;padding:16px 17px;box-shadow:0 10px 32px #0008;font-size:14px;line-height:1.45; }
+.readmeDialog h2 { margin:0 0 12px;font-size:19px;font-weight:650; }
+.readmeDialog p { margin:0 0 12px; }
+.readmeCloseRow { display:flex;justify-content:flex-end; }
+.readmeCloseRow button { border:1px solid #777;border-radius:6px;background:#1e1e1e;color:#fff;padding:6px 13px;font-size:13px; }
 .searchPanel { min-width:0;min-height:0;overflow:hidden;background:#fff;padding:5px 8px 3px;border-bottom:1px solid var(--line); }
 .searchRow { display:flex;gap:6px;margin-bottom:4px; }
 .searchRow input { flex:1;min-width:0;height:34px;padding:0 9px;border-radius:7px;border:1px solid #bccbd8;background:#fff;font-size:16px; }
@@ -81,6 +89,7 @@ select { appearance:auto;width:100%;min-width:0;height:29px;margin:0 0 3px;borde
 <div class="mobileApp">
   <header class="head">
     <div class="headTitle">W8LX AM Field Explorer</div>
+    <button type="button" id="readmeBtn" class="headReadme" aria-haspopup="dialog" aria-controls="readmeModal">Read Me</button>
   </header>
   <section class="searchPanel" aria-label="Station selection">
     <div class="searchRow">
@@ -119,6 +128,15 @@ select { appearance:auto;width:100%;min-width:0;height:29px;margin:0 0 3px;borde
     </div>
     <div class="calcNote">Estimated calculations based on LMS data and M-3 ground conductivity.</div>
   </footer>
+</div>
+<div class="readmeBackdrop" id="readmeModal" role="dialog" aria-modal="true" aria-labelledby="readmeTitle">
+  <div class="readmeDialog">
+    <h2 id="readmeTitle">W8LX AM Field Explorer</h2>
+    <p>Optimized for mobile devices. Select a station and operating pattern to explore its calculated field intensity.</p>
+    <p>Tap anywhere on the map to calculate the field at that location, or use GPS to follow your current position.</p>
+    <p>Toggle between theoretical (THEO) and standard (STD) patterns. When ground loss (Ground) is selected it's also possible to toggle calculated .5 and 2 mV/m contours   See full AM Broadcast Pattern Explorer Read Me and What's New for additional details.</p>
+    <div class="readmeCloseRow"><button type="button" id="readmeClose">Close</button></div>
+  </div>
 </div>
 <!-- Legacy integration anchors only: not part of the mobile interface. -->
 <div class="srHidden" aria-hidden="true">
@@ -1183,6 +1201,15 @@ function init(){
   }
   setTimeout(()=>map.invalidateSize({pan:false}),100);
 }
+
+// Read Me popup; no changes to application calculation or map handlers.
+const readmeModal=document.getElementById('readmeModal');
+const readmeBtn=document.getElementById('readmeBtn');
+const readmeClose=document.getElementById('readmeClose');
+readmeBtn.onclick=()=>{readmeModal.classList.add('on');readmeClose.focus();};
+readmeClose.onclick=()=>{readmeModal.classList.remove('on');readmeBtn.focus();};
+readmeModal.addEventListener('click',e=>{if(e.target===readmeModal)readmeClose.click();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&readmeModal.classList.contains('on'))readmeClose.click();});
 
 // Mobile prototype: only compact UI controls are active.
 resetBtn.onclick=()=>{clearMeasurement();};
