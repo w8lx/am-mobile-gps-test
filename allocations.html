@@ -175,7 +175,7 @@ body{display:flex;flex-direction:column;min-width:280px}
 <div class="spacer"></div>
 <button aria-label="Close" class="modalClose" id="readmeCloseBtn">Close</button>
 </div>
-<div class="modalBody"><p>Select a frequency, then Active Day, Active Night, All, or Live DX to plot antenna patterns on a common map.</p><p>Active Day and Active Night use current licensing overlays for U.S., Canadian, and Mexican stations. All includes historical and superseded database records.</p><p>Patterns are normalized for comparison. Their displayed size does not represent field strength, coverage, or licensed contour distance. Tap a pattern or site for station details. Scale adjusts the relative display size of directional and nondirectional patterns. Live DX follows the current UTC time and solar terminator at each transmitter; use the time slider to explore other UTC times, or Now to resume live time. It does not use authorized switching times.</p></div>
+<div class="modalBody"><p>v1.0 - Debugging</p><p>Select a frequency, then Active Day, Active Night, All, or Live DX to plot antenna patterns on a common map.</p><p>Active Day and Active Night use current licensing overlays for U.S., Canadian, and Mexican stations. All includes historical and superseded database records.</p><p>Patterns are normalized for comparison. Their displayed size does not represent field strength, coverage, or licensed contour distance. Tap a pattern or site for station details. Scale adjusts the relative display size of directional and nondirectional patterns. Live DX follows the current UTC time and solar terminator at each transmitter; use the time slider to explore other UTC times, or Now to resume live time. It does not use authorized switching times.</p></div>
 </div>
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -988,9 +988,10 @@ init();
   const timeLabel=document.getElementById('mobileTimeLabel');
   const timeDate=document.getElementById('mobileTimeDate');
   const timeNow=document.getElementById('mobileTimeNow');
-  function updateTimeBar(){
+  function updateTimeBar(date){
     timeSlider.value=graylineMinuteSlider.value;
-    timeLabel.textContent=graylineTime.value+' UTC';
+    const seconds=graylineLive.checked?String((date||currentUtcDate()).getUTCSeconds()).padStart(2,'0'):'00';
+    timeLabel.textContent=graylineTime.value+':'+seconds+' UTC';
     timeDate.textContent=graylineDate.value;
     timeNow.classList.toggle('active',graylineLive.checked);
   }
@@ -1006,7 +1007,7 @@ init();
   };
   // Existing live UTC clock refreshes the hidden legacy controls; mirror to the visible scrubber.
   const originalSetTime=setGraylineControlsFromDate;
-  setGraylineControlsFromDate=function(date){originalSetTime(date);updateTimeBar();};
+  setGraylineControlsFromDate=function(date){originalSetTime(date);updateTimeBar(date);};
   const baseChange=frequency.onchange;
   const scalePop=document.getElementById('mobileScalePop');
   const scaleBtn=document.getElementById('mobileScaleBtn');
