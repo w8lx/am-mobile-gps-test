@@ -947,7 +947,6 @@ function init(){
   const openReadme=()=>{readmeModal.classList.add('open');readmeModal.setAttribute('aria-hidden','false');};
   const closeReadme=()=>{readmeModal.classList.remove('open');readmeModal.setAttribute('aria-hidden','true');};
   document.getElementById('readmeBtn').onclick=openReadme;
-  document.getElementById('graylineBtn').onclick=()=>{const sidebar=document.querySelector('.left');const panel=document.getElementById('graylinePanel');sidebar.scrollTo({top:Math.max(0,panel.offsetTop-8),behavior:'smooth'});};
   document.getElementById('readmeCloseBtn').onclick=closeReadme;
   readmeModal.onclick=e=>{if(e.target===readmeModal)closeReadme();};
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeReadme();if(gcDebugActive)clearGCDebugSelection();}});
