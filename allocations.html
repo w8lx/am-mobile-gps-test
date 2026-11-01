@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
+<title>AM Allocation Maps (Mobile) | W8LX</title>
+<meta content="Minimal mobile AM station allocation and antenna pattern maps by frequency, W8LX." name="description"/>
+
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+<style>
+:root{--blue:#064b91;--line:#c8c8c8;--panel:#f4f4f4;--dark:#101010;--cream:#fff8e7}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#111;color:#111}
+.top{height:44px;background:#050505;color:#fff;display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:1px solid #333}
+.title{font-size:20px;font-weight:700;letter-spacing:.2px}.ver{font-size:12px;color:#aaa}.sub{font-size:12px;color:#ffe900}.spacer{flex:1}
+.top button{border:1px solid #666;border-radius:6px;background:#222;color:#fff;padding:7px 11px;font-weight:400;cursor:pointer}
+.app{height:calc(100vh - 44px);display:grid;grid-template-columns:365px minmax(420px,1fr);overflow:hidden}
+.left{background:linear-gradient(#fbfbfb,#e9e9e9);border-right:2px solid #888;overflow:auto;padding:12px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px}
+.panel h2{font-size:15px;margin:0 0 8px;color:#0050b7;font-weight:400}.note{font-size:12px;line-height:1.4;color:#555}
+label.block{display:block;font-size:12px;font-weight:400;margin-bottom:4px}
+select,input[type=number],input[type=text]{width:100%;height:34px;border:1px solid #aaa;border-radius:5px;background:#fff;padding:4px 7px;font-size:14px}
+.btnrow{display:flex;gap:8px;margin-top:9px}.btn{flex:1;border:1px solid #666;border-radius:6px;padding:8px 9px;background:#0b58ad;color:#fff;font-weight:400;cursor:pointer}.btn.secondary{background:#eee;color:#111}.btn.secondary.active{background:#ffe76a;color:#111;border-color:#8a7600}.btn.danger{background:#8f1818}
+.collapsiblePanel{padding:0}.collapsiblePanel summary{list-style:none;cursor:pointer;padding:10px;color:#0050b7;font-size:15px;font-weight:400}.collapsiblePanel summary::-webkit-details-marker{display:none}.collapsiblePanel summary::after{content:'Expand';float:right;color:#555;font-size:12px}.collapsiblePanel[open] summary{border-bottom:1px solid #ddd}.collapsiblePanel[open] summary::after{content:'Collapse'}.collapsibleBody{padding:10px}
+.status{font-size:12px;line-height:1.35;color:#555;margin-top:7px}.status.error{color:#9d1212;font-weight:500}
+.patternList{max-height:44vh;overflow:auto;border:1px solid #ccc;border-radius:6px;background:#fafafa}
+.patternRow{display:grid;grid-template-columns:24px 1fr;gap:5px;padding:8px;border-bottom:1px solid #ddd;cursor:pointer}.patternRow:last-child{border-bottom:0}.patternRow:hover{background:#eef5ff}.patternRow input{margin-top:2px}
+.patternMain{font-size:13px;font-weight:400}.patternMeta{font-size:11px;color:#555;margin-top:2px;line-height:1.3}.authStatus{display:inline-block;border-radius:999px;padding:1px 6px;margin-right:5px;font-size:10px;font-weight:400;letter-spacing:.2px;border:1px solid #888}.auth-LICENSE{background:#e5f5e5;border-color:#76a876;color:#185f18}.auth-CP{background:#e8f0ff;border-color:#7896c9;color:#154d91}.auth-STA{background:#fff1cf;border-color:#c79a3a;color:#7b4c00}.auth-HISTORICAL{background:#eee;border-color:#aaa;color:#555}.auth-AMBIGUOUS,.auth-UNKNOWN{background:#ffe3e3;border-color:#c77777;color:#8c1515}
+.scaleLine{display:grid;grid-template-columns:1fr 66px;gap:8px;align-items:center}.scaleLine input[type=range]{width:100%}
+.grayToggle{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:400;margin:5px 0}.grayGrid{display:grid;grid-template-columns:72px 1fr;gap:7px;align-items:center;margin-top:8px}.grayGrid label{font-size:12px;font-weight:400}.grayGrid input[type=date],.grayGrid input[type=time]{width:100%;height:32px;border:1px solid #aaa;border-radius:5px;background:#fff;padding:4px 7px;font-size:13px}.grayButtons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}.grayButtons button{border:1px solid #888;border-radius:5px;background:#eee;color:#111;font-size:12px;font-weight:400;padding:6px 4px;cursor:pointer}.graySlider{width:100%;margin-top:8px}
+.mapwrap{position:relative;min-width:0;min-height:0}.map{width:100%;height:100%}
+.legend{background:#fff;border:1px solid var(--line);border-radius:8px;margin-bottom:10px;overflow:hidden}
+.legendHead{display:flex;align-items:center;gap:8px;padding:8px 9px;border-bottom:1px solid #ccc;font-size:12px;font-weight:400;color:#0050b7}.legendBody{padding:5px 8px;max-height:210px;overflow:auto}.legendEmpty{font-size:12px;color:#666;padding:5px 0}
+.legendItem{display:grid;grid-template-columns:18px 1fr auto;gap:7px;align-items:center;padding:5px 0;border-bottom:1px solid #e5e5e5}.legendItem:last-child{border-bottom:0}.swatch{width:16px;height:4px;border-radius:2px}.legendText{font-size:12px;line-height:1.25}.remove{border:1px solid #999;border-radius:4px;background:#eee;font-size:11px;font-weight:400;padding:3px 6px;cursor:pointer}
+
+.modalBackdrop{display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.62);align-items:center;justify-content:center;padding:20px}
+.modalBackdrop.open{display:flex}
+.modal{width:min(620px,96vw);max-height:86vh;overflow:auto;background:#fff;border:1px solid #777;border-radius:9px;box-shadow:0 18px 60px rgba(0,0,0,.45)}
+.modalHead{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #ccc}
+.modalHead h2{margin:0;font-size:18px;color:#0050b7;font-weight:400}.modalHead .spacer{flex:1}
+.modalClose{border:1px solid #888;border-radius:5px;background:#eee;color:#111;padding:5px 9px;font-weight:400;cursor:pointer}
+.modalBody{padding:14px 16px;font-size:14px;line-height:1.5;color:#222}
+.modalBody p{margin:0 0 12px}.modalBody p:last-child{margin-bottom:0}
+
+@media(max-width:820px){.app{display:block;height:auto}.left{height:auto;border-right:0;border-bottom:2px solid #888}.mapwrap{height:68vh;min-height:500px}.patternList{max-height:320px}.title{font-size:16px}.sub,.ver{display:none}}
+</style>
+<style>
+/* Standalone minimalist mobile allocation maps. Legacy inputs are retained only for engine compatibility. */
+html,body{height:100%;height:100dvh;overflow:hidden;background:#111}
+body{display:flex;flex-direction:column;min-width:280px}
+.top{display:none!important}
+.mobile-head{flex:0 0 auto;min-height:43px;padding:6px 10px;background:#071525;color:#fff;display:flex;align-items:center;gap:10px;justify-content:space-between}
+.mobile-title{font-size:17px;font-weight:700;letter-spacing:.1px}
+.head-readme{flex:0 0 auto;background:#203b54;color:#fff;border:1px solid #68839d;border-radius:5px;padding:6px 9px;font-size:12px}
+.mobile-tools{flex:0 0 auto;background:#e9eff4;border-bottom:1px solid #8da4b8;padding:7px 8px 8px;display:flex;flex-direction:column;gap:7px}
+.frequency-wrap{display:flex;align-items:center;gap:10px}
+.frequency-wrap label{flex:0 0 auto;font-size:11px;font-weight:700;color:#314b64}
+.frequency-wrap #frequencySelect{flex:1;min-width:0;width:100%;height:36px;font-size:15px;font-weight:600;background:#fff}
+.mode-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.mode-btn{min-height:37px;border-radius:5px;border:1px solid #7792ab;background:#fff;color:#193e65;font-size:13px;font-weight:600;touch-action:manipulation}
+.mode-btn.active{background:#0b58ad;color:#fff;border-color:#0b58ad}
+.legacy-support{display:none!important}
+.app{flex:1 1 auto;min-height:0;display:block;height:auto;overflow:hidden}
+.mapwrap{height:100%;width:100%;min-width:0;min-height:0}
+.map{height:100%;width:100%}
+.mobile-footer{flex:0 0 auto;display:flex;align-items:center;gap:7px;padding:6px 8px max(6px,env(safe-area-inset-bottom));background:#e9eff4;border-top:1px solid #9cafbf;min-height:43px}
+.mobile-status{flex:1;min-width:0;font-size:11px;color:#354e63;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.utility-btn{flex:0 0 auto;min-width:48px;padding:6px 9px;background:#fff;color:#154575;border:1px solid #849fb7;border-radius:5px;font-size:12px}
+.leaflet-control-attribution,.leaflet-control-attribution a{font-size:9px!important}
+.modalBackdrop{padding:12px}.modal{max-height:80dvh}.modalBody{font-size:13px}
+@media(max-width:820px){.app{display:block;height:auto}.mapwrap{height:100%;min-height:0}.mobile-title{font-size:16px}}
+</style></head>
+<body>
+
+<header class="mobile-head"><div class="mobile-title">AM Allocation Maps</div><button class="head-readme" id="readmeBtn" type="button">Read Me</button></header><div class="mobile-tools"><div class="frequency-wrap"><label for="frequencySelect">FREQUENCY</label><select id="frequencySelect"><option>Loading pattern data&#8230;</option></select></div><div class="mode-buttons"><button class="mode-btn" id="selectActiveDayBtn" type="button">Active Day</button><button class="mode-btn" id="selectActiveNightBtn" type="button">Active Night</button><button class="mode-btn" id="addAllBtn" type="button">All</button></div></div><div class="app">
+<aside aria-hidden="true" class="left legacy-support">
+<div class="panel">
+<h2>Choose Frequency</h2>
+<label class="block" for="frequencySelect">AM frequency</label>
+
+<div class="status" id="frequencyStatus">Loading AMDBv3 geometry master JSON from GitHub.</div>
+</div>
+<div class="panel">
+<h2>Plot Patterns</h2>
+<div class="btnrow"></div>
+<div class="btnrow"><button class="btn secondary" id="liveDxBtn">Live DX Mode</button></div>
+<div class="note">Automatically updates active day/night patterns with sunrise and sunset. Critical-hours patterns are used when available. Actual station switching times may differ.</div>
+</div>
+<details class="panel collapsiblePanel">
+<summary>Sort &amp; Select Individual Patterns</summary>
+<div class="collapsibleBody">
+<label class="block" for="sortMode">Sort results by</label>
+<select id="sortMode">
+<option value="call">Call sign</option>
+<option value="state">State</option>
+</select>
+<div class="status" id="loadStatus">Patterns will appear after the data loads.</div>
+<div class="patternList" id="patternList" style="margin-top:9px"><div class="note" style="padding:10px">Patterns will appear after the data loads.</div></div>
+<div class="btnrow"><button class="btn secondary" id="selectAllBtn">Select All</button><button class="btn secondary" id="selectNoneBtn">None</button></div>
+<div class="btnrow"><button class="btn secondary" id="addDeletedBtn">Add Deleted</button></div>
+<div class="btnrow"><button class="btn" id="addBtn">Add Selected to Map</button></div>
+</div>
+</details>
+<div class="panel">
+<h2>Display Scale</h2>
+<label class="block" for="directionalRadiusRange">Directional maximum radius</label>
+<div class="scaleLine"><input id="directionalRadiusRange" max="250" min="10" step="5" type="range" value="75"/><input id="directionalRadiusNumber" max="250" min="10" step="5" type="number" value="75"/></div>
+<label class="block" for="nonDirectionalRadiusRange" style="margin-top:9px">Non-directional maximum radius</label>
+<div class="scaleLine"><input id="nonDirectionalRadiusRange" max="250" min="10" step="5" type="range" value="25"/><input id="nonDirectionalRadiusNumber" max="250" min="10" step="5" type="number" value="25"/></div>
+<div class="note" style="margin-top:7px">Directional and non-directional patterns use independent display radii. Changing either value only changes drawing size.</div>
+</div>
+<div class="panel" id="graylinePanel">
+<h2>Grayline</h2>
+<label class="grayToggle"><input id="graylineEnabled" type="checkbox"/> Show grayline overlay</label>
+<label class="grayToggle"><input id="graylineLive" type="checkbox"/> Live UTC</label>
+<div class="grayGrid">
+<label for="graylineDate">UTC date</label><input id="graylineDate" type="date"/>
+<label for="graylineTime">UTC time</label><input id="graylineTime" step="60" type="time"/>
+</div>
+<div class="grayButtons"><button id="graylineMinus10">&#8722;10 min</button><button id="graylineNow">Now UTC</button><button id="graylinePlus10">+10 min</button></div>
+<input class="graySlider" id="graylineMinuteSlider" max="1439" min="0" type="range" value="0"/>
+<div class="status" id="graylineStatus">Grayline off.</div>
+</div>
+<div class="panel">
+<h2>Map Controls</h2>
+<div class="btnrow"><button class="btn secondary" id="fitSideBtn">Fit Patterns</button><button class="btn danger" id="clearBtn">Clear All</button></div>
+<div class="status" id="mapStatus">No patterns plotted.</div>
+</div>
+<div class="panel">
+<h2>GC Bearing Debug</h2>
+<div class="btnrow"><button class="btn secondary" id="gcDebugBtn">Enable GC Debug</button><button class="btn secondary" id="gcClearBtn">Clear Line</button></div>
+<div class="status" id="gcStatus">Disabled. Enable, click one plotted station marker to lock the source, then click anywhere on the map for destinations.</div>
+<div class="note" style="margin-top:7px">Dashed black: great-circle path. Magenta: initial true-bearing radial. The first station selected remains the source until cleared.</div>
+</div>
+<div class="legend">
+<div class="legendHead"><span>Plotted Patterns</span><span class="spacer"></span><span id="legendCount">0</span></div>
+<div class="legendBody" id="legendBody"><div class="legendEmpty">Nothing plotted yet.</div></div>
+</div>
+<div class="panel note">
+      Relative directional-pattern comparison only. Pattern size does not represent field intensity, coverage, received signal strength, ground conductivity, or licensed contour distance.
+      <div style="margin-top:7px">&#169; 2026 Rob Peebles / W8LX.com.</div>
+</div>
+</aside>
+<main class="mapwrap">
+<div class="map" id="map"></div>
+</main>
+</div><footer class="mobile-footer"><span class="mobile-status" id="mobileStatus">Choose a frequency and mode.</span><button class="utility-btn" id="fitBtn" type="button">Fit</button><button class="utility-btn" id="clearTopBtn" type="button">Clear</button></footer>
+<div aria-hidden="true" class="modalBackdrop" id="readmeModal">
+<div aria-labelledby="readmeTitle" aria-modal="true" class="modal" role="dialog">
+<div class="modalHead">
+<h2 id="readmeTitle">AM Allocation Maps</h2>
+<div class="spacer"></div>
+<button aria-label="Close" class="modalClose" id="readmeCloseBtn">Close</button>
+</div>
+<div class="modalBody"><p>Select a frequency, then Active Day, Active Night, or All to plot antenna patterns on a common map.</p><p>Active Day and Active Night use current licensing overlays for U.S., Canadian, and Mexican stations. All includes historical and superseded database records.</p><p>Patterns are normalized for comparison. Their displayed size does not represent field strength, coverage, or licensed contour distance. Tap a pattern or site for station details.</p></div>
+</div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+'use strict';
+const R=6371.0088;
+const FACILITY_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_facilities_us_lms_geometry_master.json';
+const PATTERN_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_patterns_us_lms_geometry_master_grouped.json';
+const AUTHORIZATION_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_authorization_overlay.json';
+const CANADA_ISED_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_canada_ised_overlay_v03.json';
+const MEXICO_CRT_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_mexico_crt_overlay_v01.json';
+const COLORS=['#d7191c','#0066cc','#238b45','#8e44ad','#f39c12','#00a6a6','#cc338b','#6b4f2a','#34495e','#7f8c00','#e67e22','#2c3e50'];
+let map, allPatterns=[], visiblePatterns=[], plotted=[], nextColor=0, authorizationOverlay=null, canadaIsedOverlay=null, mexicoCrtOverlay=null;
+let gcDebugActive=false, gcSourceKey=null, gcTargetLatLng=null, gcLineLayer=null, gcRadialLayer=null, gcTargetMarker=null;
+const GRAYLINE_OFFSETS=[-360,0,360];
+const graylineEnabled=document.getElementById('graylineEnabled'),graylineLive=document.getElementById('graylineLive'),graylineDate=document.getElementById('graylineDate'),graylineTime=document.getElementById('graylineTime'),graylineMinuteSlider=document.getElementById('graylineMinuteSlider'),graylineStatus=document.getElementById('graylineStatus'),graylineNow=document.getElementById('graylineNow'),graylineMinus10=document.getElementById('graylineMinus10'),graylinePlus10=document.getElementById('graylinePlus10'),liveDxBtn=document.getElementById('liveDxBtn');
+let graylineNightLayers=[],graylineTwilightLayers=[],graylineTerminatorLayers=[],graylineSubsolarMarker=null,graylineTimer=null,graylineLastMinute='',liveDxActive=false;
+
+function rad(x){return x*Math.PI/180}
+function deg(x){return x*180/Math.PI}
+function recordLat(rec){return Number(rec.lat ?? (Number(rec.latd)+Number(rec.latm||0)/60+Number(rec.lats||0)/3600));}
+function recordLon(rec){if(rec.lon!==undefined) return Number(rec.lon); return -(Number(rec.lond)+Number(rec.lonm||0)/60+Number(rec.lons||0)/3600);}
+function modeName(v){v=String(v||'').toUpperCase(); if(v==='NIG') return 'NIGHT'; if(v==='DAY') return 'DAY'; if(v==='CRI'||v==='CRIT'||v==='CH') return 'CRITICAL'; return v||'UNSPEC';}
+function dirText(rec){return rec.dir==='Y'||((rec.towers||[]).length>1&&rec.dir!=='N')?'DA':'ND';}
+function destination(site,bearing,km){const lat1=rad(site[0]),lon1=rad(site[1]),br=rad(bearing),ad=km/R;const lat2=Math.asin(Math.sin(lat1)*Math.cos(ad)+Math.cos(lat1)*Math.sin(ad)*Math.cos(br));const lon2=lon1+Math.atan2(Math.sin(br)*Math.sin(ad)*Math.cos(lat1),Math.cos(ad)-Math.sin(lat1)*Math.sin(lat2));return [deg(lat2),deg(lon2)];}
+
+function initialBearing(a,b){
+  const lat1=rad(a[0]),lat2=rad(b[0]),dLon=rad(b[1]-a[1]);
+  const y=Math.sin(dLon)*Math.cos(lat2);
+  const x=Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
+  return (deg(Math.atan2(y,x))+360)%360;
+}
+function haversineKm(a,b){
+  const lat1=rad(a[0]),lat2=rad(b[0]),dLat=lat2-lat1,dLon=rad(b[1]-a[1]);
+  const h=Math.sin(dLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.min(1,Math.sqrt(h)));
+}
+function greatCirclePoints(a,b,steps=160){
+  const lat1=rad(a[0]),lon1=rad(a[1]),lat2=rad(b[0]),lon2=rad(b[1]);
+  const d=2*Math.asin(Math.min(1,Math.sqrt(
+    Math.sin((lat2-lat1)/2)**2+
+    Math.cos(lat1)*Math.cos(lat2)*Math.sin((lon2-lon1)/2)**2
+  )));
+  if(d===0)return [a];
+  const sinD=Math.sin(d),points=[];
+  for(let i=0;i<=steps;i++){
+    const f=i/steps;
+    const A=Math.sin((1-f)*d)/sinD;
+    const B=Math.sin(f*d)/sinD;
+    const x=A*Math.cos(lat1)*Math.cos(lon1)+B*Math.cos(lat2)*Math.cos(lon2);
+    const y=A*Math.cos(lat1)*Math.sin(lon1)+B*Math.cos(lat2)*Math.sin(lon2);
+    const z=A*Math.sin(lat1)+B*Math.sin(lat2);
+    points.push([deg(Math.atan2(z,Math.sqrt(x*x+y*y))),deg(Math.atan2(y,x))]);
+  }
+  return points;
+}
+function pad2(n){return String(n).padStart(2,'0');}
+function clampValue(x,a,b){return Math.max(a,Math.min(b,x));}
+function normalizeLon(lon){let x=lon;while(x<-180)x+=360;while(x>180)x-=360;return x;}
+function julianDay(date){return date.getTime()/86400000+2440587.5;}
+function solarPosition(date){
+  const jd=julianDay(date),T=(jd-2451545.0)/36525.0;
+  const L0=(280.46646+T*(36000.76983+T*0.0003032))%360;
+  const M=357.52911+T*(35999.05029-0.0001537*T);
+  const e=0.016708634-T*(0.000042037+0.0000001267*T);
+  const C=Math.sin(rad(M))*(1.914602-T*(0.004817+0.000014*T))+Math.sin(rad(2*M))*(0.019993-0.000101*T)+Math.sin(rad(3*M))*0.000289;
+  const trueLong=L0+C,omega=125.04-1934.136*T,lambda=trueLong-0.00569-0.00478*Math.sin(rad(omega));
+  const epsilon0=23+(26+((21.448-T*(46.815+T*(0.00059-T*0.001813)))/60))/60;
+  const epsilon=epsilon0+0.00256*Math.cos(rad(omega));
+  const declination=deg(Math.asin(Math.sin(rad(epsilon))*Math.sin(rad(lambda))));
+  const y=Math.tan(rad(epsilon/2))**2;
+  const eqTime=4*deg(y*Math.sin(2*rad(L0))-2*e*Math.sin(rad(M))+4*e*y*Math.sin(rad(M))*Math.cos(2*rad(L0))-0.5*y*y*Math.sin(4*rad(L0))-1.25*e*e*Math.sin(2*rad(M)));
+  const minutesUTC=date.getUTCHours()*60+date.getUTCMinutes()+date.getUTCSeconds()/60;
+  return {declination,subsolarLon:normalizeLon(-(minutesUTC+eqTime-720)/4),eqTime};
+}
+function solarBelowAltitudeGeometry(declinationDeg,subsolarLon,sunAltDeg){
+  const delta=rad(declinationDeg),s=Math.sin(rad(sunAltDeg));
+  const antiSolarLon=normalizeLon(subsolarLon+180);
+  const left=[],right=[],boundaryLeft=[],boundaryRight=[];
+  for(let lat=-89.9;lat<=89.9001;lat+=0.5){
+    const phi=rad(lat),den=Math.cos(phi)*Math.cos(delta);
+    let halfWidth,boundaryExists=false;
+    if(Math.abs(den)<1e-12){
+      const altAtPole=deg(Math.asin(clampValue(Math.sin(phi)*Math.sin(delta),-1,1)));
+      halfWidth=altAtPole<sunAltDeg?180:0;
+    }else{
+      const c=(s-Math.sin(phi)*Math.sin(delta))/den;
+      if(c<=-1)halfWidth=0;
+      else if(c>=1)halfWidth=180;
+      else {halfWidth=180-deg(Math.acos(c));boundaryExists=true;}
+    }
+    const lp=[lat,antiSolarLon-halfWidth],rp=[lat,antiSolarLon+halfWidth];
+    left.push(lp);right.push(rp);
+    if(boundaryExists){boundaryLeft.push(lp);boundaryRight.push(rp);}
+  }
+  return {poly:[...left,...right.slice().reverse()],boundaryLeft,boundaryRight};
+}
+function buildGrayline(date){
+  const sp=solarPosition(date);
+  const belowPlus6=solarBelowAltitudeGeometry(sp.declination,sp.subsolarLon,6);
+  const belowHorizon=solarBelowAltitudeGeometry(sp.declination,sp.subsolarLon,0);
+  const belowMinus6=solarBelowAltitudeGeometry(sp.declination,sp.subsolarLon,-6);
+  return {
+    term:[belowHorizon.boundaryLeft,belowHorizon.boundaryRight],
+    nightPoly:belowHorizon.poly,
+    twilightPoly:[belowPlus6.poly,belowMinus6.poly],
+    subsolar:[sp.declination,sp.subsolarLon]
+  };
+}
+function offsetGrayline(points,offset){return points.map(p=>[p[0],p[1]+offset]);}
+function offsetGraylinePaths(paths,offset){return paths.map(path=>offsetGrayline(path,offset));}
+function offsetGraylineRings(rings,offset){return rings.map(ring=>offsetGrayline(ring,offset));}
+function currentUtcDate(){const d=new Date();return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate(),d.getUTCHours(),d.getUTCMinutes(),d.getUTCSeconds()));}
+function setGraylineControlsFromDate(date){
+  graylineDate.value=`${date.getUTCFullYear()}-${pad2(date.getUTCMonth()+1)}-${pad2(date.getUTCDate())}`;
+  graylineTime.value=`${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`;
+  graylineMinuteSlider.value=date.getUTCHours()*60+date.getUTCMinutes();
+}
+function graylineDateFromControls(){
+  const d=graylineDate.value,t=graylineTime.value||'00:00';
+  if(!d)return currentUtcDate();
+  const [yy,mm,dd]=d.split('-').map(Number),[hh,mi]=t.split(':').map(Number);
+  return new Date(Date.UTC(yy,mm-1,dd,hh||0,mi||0,0));
+}
+function ensureGraylineLayers(){
+  if(graylineNightLayers.length)return;
+  GRAYLINE_OFFSETS.forEach(()=>{
+    graylineNightLayers.push(L.polygon([],{pane:'graylinePane',stroke:false,fillColor:'#000',fillOpacity:.18,interactive:false}).addTo(map));
+    graylineTwilightLayers.push(L.polygon([],{pane:'graylinePane',stroke:false,fillColor:'#888',fillOpacity:.18,interactive:false}).addTo(map));
+    graylineTerminatorLayers.push(L.polyline([],{pane:'graylinePane',color:'#202020',weight:2,opacity:.9,interactive:false}).addTo(map));
+  });
+  graylineSubsolarMarker=L.circleMarker([0,0],{pane:'graylinePane',radius:5,weight:1,color:'#f59f00',fillColor:'#ffd43b',fillOpacity:.95,interactive:false}).addTo(map);
+}
+function removeGraylineLayers(){
+  [...graylineNightLayers,...graylineTwilightLayers,...graylineTerminatorLayers].forEach(layer=>layer.remove());
+  if(graylineSubsolarMarker)graylineSubsolarMarker.remove();
+  graylineNightLayers=[];graylineTwilightLayers=[];graylineTerminatorLayers=[];graylineSubsolarMarker=null;
+}
+function drawGrayline(date){
+  if(!graylineEnabled.checked)return;
+  ensureGraylineLayers();
+  const g=buildGrayline(date);
+  GRAYLINE_OFFSETS.forEach((offset,i)=>{
+    graylineNightLayers[i].setLatLngs(offsetGrayline(g.nightPoly,offset));
+    graylineTwilightLayers[i].setLatLngs(offsetGraylineRings(g.twilightPoly,offset));
+    graylineTerminatorLayers[i].setLatLngs(offsetGraylinePaths(g.term,offset));
+  });
+  graylineSubsolarMarker.setLatLng(g.subsolar);
+  graylineStatus.textContent=`${graylineLive.checked?'Live':'Fixed'} UTC: ${date.getUTCFullYear()}-${pad2(date.getUTCMonth()+1)}-${pad2(date.getUTCDate())} ${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`;
+}
+function stopGraylineLive(){if(graylineTimer){clearInterval(graylineTimer);graylineTimer=null;}graylineLastMinute='';}
+function disableGraylineLive(){graylineLive.checked=false;stopGraylineLive();}
+function refreshGraylineLive(force=false){
+  const date=currentUtcDate();setGraylineControlsFromDate(date);
+  const minuteKey=`${date.getUTCFullYear()}-${date.getUTCMonth()}-${date.getUTCDate()}-${date.getUTCHours()}-${date.getUTCMinutes()}`;
+  if(force||minuteKey!==graylineLastMinute){graylineLastMinute=minuteKey;drawGrayline(date);refreshLiveDx();}else if(graylineEnabled.checked){graylineStatus.textContent=`Live UTC: ${date.getUTCFullYear()}-${pad2(date.getUTCMonth()+1)}-${pad2(date.getUTCDate())} ${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}:${pad2(date.getUTCSeconds())}`;}
+}
+function startGraylineLive(){stopGraylineLive();refreshGraylineLive(true);graylineTimer=setInterval(()=>refreshGraylineLive(false),1000);}
+function applyManualGrayline(){disableGraylineLive();drawGrayline(graylineDateFromControls());refreshLiveDx();}
+
+function complexAdd(a,b){return [a[0]+b[0],a[1]+b[1]]}
+function cis(mag,phase){return [mag*Math.cos(rad(phase)),mag*Math.sin(rad(phase))]}
+
+function preparedTowers(rec){
+  return (rec.towers||[]).map((t,i)=>({
+    ratio:Number(t.ratio??1),phase:Number(t.phase??0),spacing:Number(t.spacing??0),orientation:Number(t.orient??0),
+    x:(t.xDeg!==undefined&&t.xDeg!==null)?Number(t.xDeg):null,
+    y:(t.yDeg!==undefined&&t.yDeg!==null)?Number(t.yDeg):null,
+    number:t.n??i+1
+  }));
+}
+function rawAt(towers,bearing){
+  let sum=[0,0];
+  towers.forEach(t=>{
+    let spatial;
+    if(Number.isFinite(t.x)&&Number.isFinite(t.y)) spatial=t.x*Math.sin(rad(bearing))-t.y*Math.cos(rad(bearing));
+    else spatial=t.spacing*Math.cos(rad(bearing-t.orientation));
+    sum=complexAdd(sum,cis(t.ratio,t.phase+spatial));
+  });
+  return Math.hypot(sum[0],sum[1]);
+}
+function normalizedPoints(rec,radiusKm){
+  const site=[recordLat(rec),recordLon(rec)], towers=preparedTowers(rec);
+  if(!towers.length) return {site,points:[]};
+  let peak=0;
+  for(let b=0;b<360;b+=0.5) peak=Math.max(peak,rawAt(towers,b));
+  peak=peak||1;
+  const points=[];
+  for(let b=0;b<=360;b+=1){
+    const factor=Math.max(0,rawAt(towers,b)/peak);
+    points.push(destination(site,b,Math.max(radiusKm*factor,0.02)));
+  }
+  return {site,points};
+}
+
+function patternKey(rec){return [rec.fid,rec.app,rec.ant,rec.mode,rec.freq,recordLat(rec),recordLon(rec)].join('|');}
+function patternLabel(rec){return `${displayCall(rec)} ${rec.freq||''} ${modeName(rec.mode)}`.trim();}
+function patternDescription(rec){const city=[rec.city,rec.state].filter(Boolean).join(', ');const towers=(rec.towers||[]).length;return `${city}${city?' \u00b7 ':''}${rec.kw??'?'} kW \u00b7 ${dirText(rec)} \u00b7 ${towers} tower${towers===1?'':'s'}`;}
+
+function isAuthorizationScope(rec){return /^[KW]/i.test(String(rec?.call||''));}
+function authorizationForPattern(rec){if(!isAuthorizationScope(rec))return null;return authorizationOverlay?.patterns?.[rec?.id]||null;}
+function authorizationClass(rec){
+  const auth=authorizationForPattern(rec);
+  if(!auth)return '';
+  const evidenceClasses=new Set((auth.evidence||[]).map(e=>String(e?.class||'').toUpperCase()));
+  // A current license for this exact grouped geometry is decisive. Reuse of the
+  // same geometry by a CP or STA does not make the operating pattern ambiguous.
+  if(evidenceClasses.has('LICENSE'))return 'LICENSE';
+  if(evidenceClasses.has('STA'))return 'STA';
+  if(evidenceClasses.has('CP'))return 'CP';
+  return String(auth.primaryClass||'').toUpperCase();
+}
+function authorizationLabel(cls){const labels={LICENSE:'ACTIVE',CP:'CP',STA:'STA',HISTORICAL:'INACTIVE',AMBIGUOUS:'AMBIGUOUS',UNKNOWN:'AMBIGUOUS'};return labels[cls]||'';}
+function authorizationStatusHtml(rec){const cls=authorizationClass(rec),label=authorizationLabel(cls);return label?`<span class="authStatus auth-${cls}">${label}</span>`:'';}
+function authorizationPlainText(rec){return authorizationLabel(authorizationClass(rec));}
+
+function canadaOverlayForPattern(rec){
+  return canadaIsedOverlay?.patterns?.[rec?.id]||null;
+}
+function mexicoOverlayForPattern(rec){
+  return mexicoCrtOverlay?.patterns?.[rec?.id]||null;
+}
+function isMexicoActiveForMode(rec,mode){
+  const mx=mexicoOverlayForPattern(rec);
+  if(!mx)return false;
+  if(mode==='DAY')return mx.activeDay===true;
+  if(mode==='NIGHT')return mx.activeNight===true;
+  return false;
+}
+function displayCall(rec){
+  return canadaOverlayForPattern(rec)?.currentCall || mexicoOverlayForPattern(rec)?.currentCall || rec?.call || '(none)';
+}
+function isCanadaActiveForMode(rec,mode){
+  const ca=canadaOverlayForPattern(rec);
+  if(!ca)return false;
+  if(mode==='DAY')return ca.activeDay===true;
+  if(mode==='NIGHT')return ca.activeNight===true;
+  return false;
+}
+function activeForMode(rec,mode){
+  const recMode=modeName(rec.mode);
+  const modeMatches=(recMode===mode || recMode==='UNL' || recMode==='UNLIMITED');
+  if(!modeMatches)return false;
+  return authorizationPlainText(rec)==='ACTIVE' || isCanadaActiveForMode(rec,mode) || isMexicoActiveForMode(rec,mode);
+}
+
+function solarAltitudeAt(lat,lon,date){
+  const sp=solarPosition(date);
+  const phi=rad(lat),delta=rad(sp.declination),H=rad(normalizeLon(lon-sp.subsolarLon));
+  return deg(Math.asin(clampValue(
+    Math.sin(phi)*Math.sin(delta)+Math.cos(phi)*Math.cos(delta)*Math.cos(H),
+    -1,1
+  )));
+}
+
+function estimatedSunriseSunsetUtcMinutes(lat,lon,date){
+  const noon=new Date(Date.UTC(
+    date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate(),12,0,0
+  ));
+  const sp=solarPosition(noon);
+  const phi=rad(lat),delta=rad(sp.declination);
+  const cosH=-Math.tan(phi)*Math.tan(delta);
+
+  if(cosH>=1)return {sunrise:null,sunset:null};
+  if(cosH<=-1)return {sunrise:null,sunset:null};
+
+  const H=deg(Math.acos(clampValue(cosH,-1,1)));
+  const solarNoon=720-4*lon-sp.eqTime;
+
+  return {
+    sunrise:solarNoon-4*H,
+    sunset:solarNoon+4*H
+  };
+}
+
+function withinCriticalHours(lat,lon,date){
+  const s=estimatedSunriseSunsetUtcMinutes(lat,lon,date);
+  if(s.sunrise===null||s.sunset===null)return false;
+
+  const now=date.getUTCHours()*60+date.getUTCMinutes()+date.getUTCSeconds()/60;
+
+  for(const shift of [-1440,0,1440]){
+    const rise=s.sunrise+shift;
+    const set=s.sunset+shift;
+
+    if(now>=rise && now<rise+120)return true;
+    if(now>=set-120 && now<set)return true;
+  }
+
+  return false;
+}
+function liveDxGroupKey(rec){
+  return `${rec.fid??''}|${displayCall(rec)}|${rec.freq??''}`;
+}
+function refreshLiveDx(){
+  if(!liveDxActive)return;
+
+  const date=graylineDateFromControls();
+  const groups=new Map();
+
+  visiblePatterns.forEach(rec=>{
+    if(!hasValidSite(rec))return;
+
+    const day=activeForMode(rec,'DAY');
+    const night=activeForMode(rec,'NIGHT');
+    const critical=activeForMode(rec,'CRITICAL');
+
+    if(!day&&!night&&!critical)return;
+
+    const key=liveDxGroupKey(rec);
+
+    if(!groups.has(key))
+      groups.set(key,{day:[],night:[],critical:[],all:[]});
+
+    const g=groups.get(key);
+
+    if(day)g.day.push(rec);
+    if(night)g.night.push(rec);
+    if(critical)g.critical.push(rec);
+
+    g.all.push(rec);
+  });
+
+  plotted.forEach(item=>{
+    if(item.layer)item.layer.remove();
+    if(item.marker)item.marker.remove();
+  });
+
+  plotted=[];
+  clearGCDebugSelection();
+
+  groups.forEach(g=>{
+    const ref=g.day[0]||g.night[0]||g.critical[0]||g.all[0];
+
+    const lat=recordLat(ref);
+    const lon=recordLon(ref);
+    const alt=solarAltitudeAt(lat,lon,date);
+
+    let chosen=[],siteOnly=null;
+
+    if(g.critical.length && withinCriticalHours(lat,lon,date)){
+      chosen=g.critical;
+    }else if(alt>=0){
+      chosen=g.day;
+
+      if(!chosen.length)
+        chosen=g.night;
+
+      if(!chosen.length && g.critical.length)
+        chosen=g.critical;
+    }else if(g.night.length){
+      chosen=g.night;
+    }else{
+      // Keep a visible site marker for stations that have no nighttime
+      // authorization in the active overlays. Do not draw the daytime
+      // pattern after local sunset; manual mode remains available for that.
+      siteOnly=g.day[0]||g.critical[0]||g.all[0]||null;
+    }
+
+    chosen.forEach(rec=>{
+      const key=patternKey(rec);
+
+      if(plotted.some(p=>p.key===key))return;
+
+      plotted.push({
+        key,
+        rec,
+        color:COLORS[nextColor++%COLORS.length],
+        layer:null,
+        marker:null,
+        siteOnly:false
+      });
+    });
+
+    if(siteOnly){
+      const rec=siteOnly;
+      const key=patternKey(rec);
+
+      if(!plotted.some(p=>p.key===key)){
+        plotted.push({
+          key,
+          rec,
+          color:'#000',
+          layer:null,
+          marker:null,
+          siteOnly:true
+        });
+      }
+    }
+  });
+
+  redrawAll(false);
+
+  const livePatternCount=plotted.filter(p=>!p.siteOnly).length;
+  const siteOnlyCount=plotted.filter(p=>p.siteOnly).length;
+  document.getElementById('mapStatus').textContent=
+    `${livePatternCount} estimated live pattern${livePatternCount===1?'':'s'} plotted`+
+    `${siteOnlyCount?` \u00b7 ${siteOnlyCount} site${siteOnlyCount===1?'':'s'} shown without nighttime authorization`:''} for `+
+    `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())} UTC.`;
+}
+
+function uniqueSorted(values, numeric=false){
+  const clean=[...new Set(values.filter(v=>v!==null&&v!==undefined&&String(v).trim()!==''))];
+  return clean.sort(numeric?(a,b)=>Number(a)-Number(b):(a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'}));
+}
+function selectedFrequencyPatterns(){
+  const f=Number(document.getElementById('frequencySelect').value);
+  return allPatterns.filter(p=>Number(p.freq)===f);
+}
+function requestedFrequencyFromUrl(){
+  const raw=new URLSearchParams(window.location.search).get('freq');
+  if(raw===null || String(raw).trim()==='') return null;
+  const value=Number(raw);
+  return Number.isFinite(value) && value>0 ? value : null;
+}
+
+function populateFrequencies(preferredValue=null){
+  const select=document.getElementById('frequencySelect');
+  const values=uniqueSorted(allPatterns.map(p=>Number(p.freq)).filter(f=>Number.isFinite(f)&&f>0),true);
+  select.innerHTML='<option value="">Select frequency\u2026</option>';
+  values.forEach(v=>{
+    const o=document.createElement('option');o.value=String(v);o.textContent=`${v} kHz`;select.appendChild(o);
+  });
+  const preferred=preferredValue!==null?Number(preferredValue):requestedFrequencyFromUrl();
+  if(preferred!==null && values.includes(preferred)) select.value=String(preferred);
+  else select.value='';
+  renderPatternChoices();
+}
+function renderPatternChoices(){
+  const frequencyValue=document.getElementById('frequencySelect').value;
+  const sortMode=document.getElementById('sortMode').value;
+  const list=document.getElementById('patternList');
+  if(frequencyValue===''){
+    visiblePatterns=[];
+    list.innerHTML='<div class="note" style="padding:10px">Select a frequency to view candidate patterns.</div>';
+    document.getElementById('frequencyStatus').textContent='Select an AM frequency.';
+    document.getElementById('loadStatus').textContent='No frequency selected.';
+    return;
+  }
+  const frequency=Number(frequencyValue);
+  visiblePatterns=selectedFrequencyPatterns();
+
+  visiblePatterns.sort((a,b)=>{
+    if(sortMode==='state'){
+      const st=String(a.state||'').localeCompare(String(b.state||''),undefined,{sensitivity:'base'}); if(st)return st;
+      const city=String(a.city||'').localeCompare(String(b.city||''),undefined,{sensitivity:'base'}); if(city)return city;
+      const call=String(displayCall(a)).localeCompare(String(displayCall(b)),undefined,{numeric:true,sensitivity:'base'}); if(call)return call;
+    }else{
+      const call=String(displayCall(a)).localeCompare(String(displayCall(b)),undefined,{numeric:true,sensitivity:'base'}); if(call)return call;
+      const st=String(a.state||'').localeCompare(String(b.state||''),undefined,{sensitivity:'base'}); if(st)return st;
+      const city=String(a.city||'').localeCompare(String(b.city||''),undefined,{sensitivity:'base'}); if(city)return city;
+    }
+    const mode=modeName(a.mode).localeCompare(modeName(b.mode)); if(mode)return mode;
+    return Number(a.kw||0)-Number(b.kw||0);
+  });
+
+  list.innerHTML='';
+  if(!visiblePatterns.length){list.innerHTML='<div class="note" style="padding:10px">No patterns found.</div>';return;}
+  visiblePatterns.forEach((rec,i)=>{
+    const location=[rec.city,rec.state].filter(Boolean).join(', ')||'Location unavailable';
+    const towers=(rec.towers||[]).length;
+    const row=document.createElement('label');row.className='patternRow';
+    row.innerHTML=`<input type="checkbox" data-index="${i}"><div><div class="patternMain">${escapeHtml(displayCall(rec))} \u2014 ${escapeHtml(location)}</div><div class="patternMeta">${authorizationStatusHtml(rec)}${escapeHtml(modeName(rec.mode))} \u00b7 ${escapeHtml(rec.kw??'?')} kW \u00b7 ${escapeHtml(dirText(rec))} \u00b7 ${towers} tower${towers===1?'':'s'}</div></div>`;
+    list.appendChild(row);
+  });
+  document.getElementById('frequencyStatus').textContent=`${visiblePatterns.length} candidate pattern${visiblePatterns.length===1?'':'s'} on ${frequency} kHz.`;
+  document.getElementById('loadStatus').textContent=`Showing all ${visiblePatterns.length} pattern${visiblePatterns.length===1?'':'s'} on ${frequency} kHz, sorted by ${sortMode==='call'?'call sign':'state'}.`;
+}
+function escapeHtml(v){return String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+
+function clearGCLayers(){
+  if(gcLineLayer){gcLineLayer.remove();gcLineLayer=null;}
+  if(gcRadialLayer){gcRadialLayer.remove();gcRadialLayer=null;}
+  if(gcTargetMarker){gcTargetMarker.remove();gcTargetMarker=null;}
+}
+function updateGCStatus(message){
+  document.getElementById('gcStatus').textContent=message;
+}
+function clearGCDebugSelection(){
+  clearGCLayers();
+  gcSourceKey=null;
+  gcTargetLatLng=null;
+  updateGCStatus(gcDebugActive?'Click one plotted station marker to lock the source.':'Disabled. Enable, click one plotted station marker to lock the source, then click anywhere on the map for destinations.');
+}
+function setGCDebugActive(active){
+  gcDebugActive=active;
+  const btn=document.getElementById('gcDebugBtn');
+  btn.classList.toggle('active',active);
+  btn.textContent=active?'GC Debug Enabled':'Enable GC Debug';
+  clearGCDebugSelection();
+}
+function setGCSource(item){
+  if(!gcDebugActive)return;
+  if(gcSourceKey){
+    gcTargetLatLng=L.latLng(recordLat(item.rec),recordLon(item.rec));
+    drawGCDebug();
+    return;
+  }
+  gcSourceKey=item.key;
+  gcTargetLatLng=null;
+  clearGCLayers();
+  updateGCStatus(`Source locked: ${patternLabel(item.rec)}. Click anywhere on the map, including another station marker, for the destination.`);
+}
+function drawGCDebug(){
+  clearGCLayers();
+  if(!gcSourceKey||!gcTargetLatLng)return;
+  const sourceItem=plotted.find(p=>p.key===gcSourceKey);
+  if(!sourceItem){clearGCDebugSelection();return;}
+
+  const source=[recordLat(sourceItem.rec),recordLon(sourceItem.rec)];
+  const target=[gcTargetLatLng.lat,gcTargetLatLng.lng];
+  const bearing=initialBearing(source,target);
+  const distanceKm=haversineKm(source,target);
+  const distanceMi=distanceKm*0.621371;
+  const radialKm=Math.min(150,Math.max(25,distanceKm*0.25));
+
+  gcLineLayer=L.polyline(greatCirclePoints(source,target),{
+    color:'#111',weight:2.5,opacity:.82,dashArray:'8 7'
+  }).addTo(map);
+
+  gcRadialLayer=L.polyline([source,destination(source,bearing,radialKm)],{
+    color:'#ff00aa',weight:4,opacity:.9
+  }).addTo(map);
+
+  gcTargetMarker=L.circleMarker(target,{
+    radius:5,color:'#111',weight:2,fillColor:'#ffe76a',fillOpacity:1
+  }).addTo(map);
+
+  const popup=
+    `<b>Great-circle debug</b><br>`+
+    `Source: ${escapeHtml(patternLabel(sourceItem.rec))}<br>`+
+    `Destination: ${target[0].toFixed(5)}, ${target[1].toFixed(5)}<br>`+
+    `Initial true bearing: ${bearing.toFixed(2)}\u00b0<br>`+
+    `Distance: ${distanceMi.toFixed(1)} mi (${distanceKm.toFixed(1)} km)`;
+
+  gcLineLayer.bindPopup(popup);
+  gcRadialLayer.bindPopup(popup);
+  gcTargetMarker.bindPopup(popup);
+  updateGCStatus(`${patternLabel(sourceItem.rec)} \u2192 ${target[0].toFixed(4)}, ${target[1].toFixed(4)} \u00b7 ${bearing.toFixed(2)}\u00b0 \u00b7 ${distanceMi.toFixed(1)} mi`);
+}
+
+function addActiveMode(mode){
+  let added=0, matched=0, skipped=0;
+  visiblePatterns.forEach(rec=>{
+    if(!activeForMode(rec,mode)) return;
+    matched++;
+    if(!hasValidSite(rec)){skipped++;return;}
+    const key=patternKey(rec);
+    if(plotted.some(p=>p.key===key)) return;
+    plotted.push({key,rec,color:COLORS[nextColor++%COLORS.length],layer:null,marker:null});
+    added++;
+  });
+  if(added) redrawAll(true);
+  else renderLegend();
+  document.getElementById('mapStatus').textContent=
+    !matched ? `No active ${mode.toLowerCase()} patterns on this frequency.` :
+    added ? `${added} active ${mode.toLowerCase()} pattern${added===1?'':'s'} added. ${plotted.length} total plotted.${skipped?` ${skipped} skipped: invalid coordinates.`:''}` :
+    skipped ? `${skipped} active ${mode.toLowerCase()} pattern${skipped===1?' was':'s were'} skipped: invalid coordinates.` :
+    `All active ${mode.toLowerCase()} patterns on this frequency are already plotted.`;
+}
+
+function addAll(){
+  let added=0,skipped=0;
+  visiblePatterns.forEach(rec=>{
+    if(!hasValidSite(rec)){skipped++;return;}
+    const key=patternKey(rec);
+    if(plotted.some(p=>p.key===key)) return;
+    plotted.push({key,rec,color:COLORS[nextColor++%COLORS.length],layer:null,marker:null});
+    added++;
+  });
+  if(added) redrawAll(true);
+  else renderLegend();
+  document.getElementById('mapStatus').textContent=
+    !visiblePatterns.length ? 'No patterns found on this frequency.' :
+    added ? `${added} pattern${added===1?'':'s'} added. ${plotted.length} total plotted.${skipped?` ${skipped} skipped: invalid coordinates.`:''}` :
+    skipped ? `${skipped} pattern${skipped===1?' was':'s were'} skipped: invalid coordinates.` :
+    'All patterns on this frequency are already plotted.';
+}
+
+function addDeleted(){
+  let added=0, matched=0, skipped=0;
+  visiblePatterns.forEach(rec=>{
+    if(!/^D/i.test(String(rec.call||''))) return;
+    matched++;
+    if(!hasValidSite(rec)){skipped++;return;}
+    const key=patternKey(rec);
+    if(plotted.some(p=>p.key===key)) return;
+    plotted.push({key,rec,color:COLORS[nextColor++%COLORS.length],layer:null,marker:null});
+    added++;
+  });
+  if(added) redrawAll(true);
+  else renderLegend();
+  document.getElementById('mapStatus').textContent=
+    !matched ? 'No deleted records found on this frequency.' :
+    added ? `${added} deleted record${added===1?'':'s'} added. ${plotted.length} total plotted.${skipped?` ${skipped} skipped: invalid coordinates.`:''}` :
+    skipped ? `${skipped} deleted record${skipped===1?' was':'s were'} skipped: invalid coordinates.` :
+    'All deleted records on this frequency are already plotted.';
+}
+
+function hasValidSite(rec){
+  const lat=recordLat(rec),lon=recordLon(rec);
+  return Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180;
+}
+
+function addSelected(){
+  const checked=[...document.querySelectorAll('#patternList input:checked')];
+  if(!checked.length){document.getElementById('mapStatus').textContent='Select at least one pattern first.';return;}
+  let added=0,skipped=0;
+  checked.forEach(box=>{
+    const idx=Number(box.dataset.index),rec=visiblePatterns[idx],key=patternKey(rec);
+    if(plotted.some(p=>p.key===key)) return;
+    if(!hasValidSite(rec)){skipped++;return;}
+    const item={key,rec,color:COLORS[nextColor++%COLORS.length],layer:null,marker:null};
+    plotted.push(item);added++;
+  });
+  if(added) redrawAll(true); else renderLegend();
+  document.getElementById('mapStatus').textContent=
+    added ? `${added} pattern${added===1?'':'s'} added. ${plotted.length} total plotted.${skipped?` ${skipped} skipped: invalid coordinates.`:''}` :
+    skipped ? `${skipped} selected pattern${skipped===1?' was':'s were'} skipped: invalid coordinates.` :
+    'Selected patterns were already plotted.';
+}
+function redrawAll(fit=false){
+  const directionalRadius=Math.max(10,Math.min(250,Number(document.getElementById('directionalRadiusNumber').value)||75));
+  const nonDirectionalRadius=Math.max(10,Math.min(250,Number(document.getElementById('nonDirectionalRadiusNumber').value)||25));
+  plotted.forEach(item=>{
+    if(item.layer) item.layer.remove(); if(item.marker) item.marker.remove();
+
+    if(item.siteOnly){
+      const site=[recordLat(item.rec),recordLon(item.rec)];
+      item.layer=null;
+      item.marker=L.circleMarker(site,{radius:3,color:'#000',weight:1.25,fillColor:'#000',fillOpacity:1})
+        .addTo(map)
+        .bindTooltip(`${displayCall(item.rec)} ${item.rec.freq||''} \u2014 no nighttime auth`,{direction:'top'});
+      item.marker.on('click',e=>{
+        if(gcDebugActive){
+          L.DomEvent.stopPropagation(e);
+          setGCSource(item);
+        }
+      });
+      return;
+    }
+
+    const radius=dirText(item.rec)==='DA'?directionalRadius:nonDirectionalRadius;
+    const shape=normalizedPoints(item.rec,radius);
+    if(shape.points.length){
+      item.layer=L.polygon(shape.points,{color:item.color,weight:2.5,fillColor:item.color,fillOpacity:.12}).addTo(map);
+      const authText=authorizationPlainText(item.rec);
+      item.layer.bindPopup(`<b>${escapeHtml(patternLabel(item.rec))}</b><br>${authText?`<b>${escapeHtml(authText)}</b><br>`:''}${escapeHtml(patternDescription(item.rec))}<br><em>Normalized relative pattern</em>`);
+    }
+    item.marker=L.circleMarker(shape.site,{radius:4,color:item.color,weight:2,fillColor:'#fff',fillOpacity:1}).addTo(map).bindTooltip(patternLabel(item.rec),{direction:'top'});
+    item.marker.on('click',e=>{
+      if(gcDebugActive){
+        L.DomEvent.stopPropagation(e);
+        setGCSource(item);
+      }
+    });
+  });
+  renderLegend();
+  if(gcSourceKey&&gcTargetLatLng)drawGCDebug();
+  if(fit) fitPatterns();
+}
+function renderLegend(){
+  const body=document.getElementById('legendBody');document.getElementById('legendCount').textContent=plotted.length;
+  body.innerHTML='';
+  if(!plotted.length){body.innerHTML='<div class="legendEmpty">Nothing plotted yet.</div>';return;}
+  plotted.forEach((item,i)=>{
+    const row=document.createElement('div');row.className='legendItem';
+    const label=item.siteOnly
+      ? `${escapeHtml(displayCall(item.rec))} ${escapeHtml(item.rec.freq||'')} \u00b7 SITE ONLY`
+      : `${authorizationStatusHtml(item.rec)}${escapeHtml(patternLabel(item.rec))}`;
+    row.innerHTML=`<span class="swatch" style="background:${item.color}"></span><div class="legendText">${label}<br>${escapeHtml([item.rec.city,item.rec.state].filter(Boolean).join(', '))}</div><button class="remove" data-i="${i}">Remove</button>`;
+    body.appendChild(row);
+  });
+  body.querySelectorAll('.remove').forEach(btn=>btn.onclick=()=>removePattern(Number(btn.dataset.i)));
+}
+function removePattern(i){
+  const item=plotted[i];if(!item)return;
+  if(item.layer)item.layer.remove();if(item.marker)item.marker.remove();
+  const removedSource=item.key===gcSourceKey;
+  plotted.splice(i,1);
+  if(removedSource)clearGCDebugSelection();
+  renderLegend();
+  document.getElementById('mapStatus').textContent=plotted.length?`${plotted.length} pattern${plotted.length===1?'':'s'} plotted.`:'No patterns plotted.';
+}
+function clearAll(){
+  plotted.forEach(item=>{if(item.layer)item.layer.remove();if(item.marker)item.marker.remove();});
+  plotted=[];
+  clearGCDebugSelection();
+  renderLegend();
+  document.getElementById('mapStatus').textContent='No patterns plotted.';
+}
+function fitPatterns(){const layers=[];plotted.forEach(p=>{if(p.layer)layers.push(p.layer);if(p.marker)layers.push(p.marker);});if(!layers.length)return;const group=L.featureGroup(layers);const b=group.getBounds();if(b.isValid())map.fitBounds(b,{padding:[30,30],maxZoom:9});}
+function syncRadius(rangeId,numberId,fromRange,defaultValue){const range=document.getElementById(rangeId),num=document.getElementById(numberId);if(fromRange)num.value=range.value;else{let v=Math.max(10,Math.min(250,Number(num.value)||defaultValue));num.value=v;range.value=v;}redrawAll(false);}
+
+async function loadData(){
+  const status=document.getElementById('loadStatus');
+  try{
+    const patternRequest=fetch(PATTERN_URL,{cache:'no-store'});
+    const authRequest=fetch(AUTHORIZATION_URL,{cache:'no-store'}).then(async r=>{if(!r.ok)throw new Error(`${r.status} ${r.statusText}`);const j=await r.json();if(!j?.patterns)throw new Error('overlay does not contain a patterns object');return j;});
+    const canadaRequest=fetch(CANADA_ISED_URL,{cache:'no-store'}).then(async r=>{if(!r.ok)throw new Error(`${r.status} ${r.statusText}`);const j=await r.json();if(!j?.patterns)throw new Error('Canadian overlay does not contain a patterns object');return j;});
+    const mexicoRequest=fetch(MEXICO_CRT_URL,{cache:'no-store'}).then(async r=>{if(!r.ok)throw new Error(`${r.status} ${r.statusText}`);const j=await r.json();if(!j?.patterns)throw new Error('Mexican overlay does not contain a patterns object');return j;});
+    const r=await patternRequest;if(!r.ok)throw new Error(`${r.status} ${r.statusText}`);
+    allPatterns=await r.json();
+    let authNote='';
+    try{authorizationOverlay=await authRequest;}catch(e){authNote+=' U.S. authorization status unavailable; pattern mapping remains usable.';}
+    try{canadaIsedOverlay=await canadaRequest;}catch(e){authNote+=' Canadian ISED status unavailable; U.S. active selection remains usable.';}
+    try{mexicoCrtOverlay=await mexicoRequest;}catch(e){authNote+=' Mexican CRT status unavailable; U.S./Canadian active selection remains usable.';}
+    status.textContent=`Loaded ${allPatterns.length.toLocaleString()} grouped candidate patterns.${authNote}`;
+    populateFrequencies();
+  }catch(e){status.className='status error';status.textContent=`Could not load pattern data: ${e.message}. Open from a web server if file:// access is blocked.`;document.getElementById('frequencySelect').innerHTML='<option>Data unavailable</option>';}
+}
+function addButtonZoomControl(){
+  const ButtonZoom=L.Control.extend({
+    options:{position:'topleft'},
+    onAdd:function(){
+      const c=L.DomUtil.create('div','leaflet-bar leaflet-control');
+      const zin=L.DomUtil.create('button','',c);
+      const zout=L.DomUtil.create('button','',c);
+      [zin,zout].forEach(b=>{
+        b.type='button';
+        b.style.display='block';
+        b.style.width='30px';
+        b.style.height='30px';
+        b.style.padding='0';
+        b.style.border='0';
+        b.style.background='#fff';
+        b.style.color='#000';
+        b.style.font='bold 22px/30px Arial,Helvetica,sans-serif';
+        b.style.cursor='pointer';
+      });
+      zin.textContent='+';
+      zout.textContent='\u2212';
+      zin.title='Zoom in';
+      zout.title='Zoom out';
+      zin.style.borderBottom='1px solid #ccc';
+      L.DomEvent.disableClickPropagation(c);
+      L.DomEvent.disableScrollPropagation(c);
+      L.DomEvent.on(zin,'click',e=>{L.DomEvent.preventDefault(e); map.zoomIn();});
+      L.DomEvent.on(zout,'click',e=>{L.DomEvent.preventDefault(e); map.zoomOut();});
+      return c;
+    }
+  });
+  map.addControl(new ButtonZoom());
+}
+
+function init(){
+  map=L.map('map',{zoomControl:false,zoomSnap:.25,zoomDelta:.25}).setView([39.5,-98.35],4);
+  addButtonZoomControl();
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'\u00a9 OpenStreetMap contributors'}).addTo(map);
+  map.createPane('graylinePane');map.getPane('graylinePane').style.zIndex='250';map.getPane('graylinePane').style.pointerEvents='none';
+  setTimeout(()=>map.invalidateSize(),100);
+  document.getElementById('frequencySelect').onchange=()=>{renderPatternChoices();refreshLiveDx();};
+  document.getElementById('sortMode').onchange=renderPatternChoices;
+  document.getElementById('selectAllBtn').onclick=()=>document.querySelectorAll('#patternList input').forEach(x=>x.checked=true);
+  document.getElementById('selectNoneBtn').onclick=()=>document.querySelectorAll('#patternList input').forEach(x=>x.checked=false);
+  document.getElementById('selectActiveDayBtn').onclick=()=>addActiveMode('DAY');
+  document.getElementById('selectActiveNightBtn').onclick=()=>addActiveMode('NIGHT');
+  document.getElementById('addAllBtn').onclick=addAll;
+  liveDxBtn.onclick=()=>{
+    liveDxActive=!liveDxActive;
+    liveDxBtn.classList.toggle('active',liveDxActive);
+    liveDxBtn.textContent=liveDxActive?'Live DX Mode On':'Live DX Mode';
+
+    if(liveDxActive){
+      graylineEnabled.checked=true;
+      graylineLive.checked=true;
+      startGraylineLive();
+      refreshLiveDx();
+    }
+  };
+  document.getElementById('addDeletedBtn').onclick=addDeleted;
+  document.getElementById('addBtn').onclick=addSelected;
+  document.getElementById('clearBtn').onclick=clearAll;document.getElementById('clearTopBtn').onclick=clearAll;
+  document.getElementById('fitBtn').onclick=fitPatterns;document.getElementById('fitSideBtn').onclick=fitPatterns;
+  document.getElementById('gcDebugBtn').onclick=()=>setGCDebugActive(!gcDebugActive);
+  document.getElementById('gcClearBtn').onclick=clearGCDebugSelection;
+  map.on('click',e=>{if(gcDebugActive&&gcSourceKey){gcTargetLatLng=e.latlng;drawGCDebug();}});
+  document.getElementById('directionalRadiusRange').oninput=()=>syncRadius('directionalRadiusRange','directionalRadiusNumber',true,75);document.getElementById('directionalRadiusNumber').onchange=()=>syncRadius('directionalRadiusRange','directionalRadiusNumber',false,75);
+  document.getElementById('nonDirectionalRadiusRange').oninput=()=>syncRadius('nonDirectionalRadiusRange','nonDirectionalRadiusNumber',true,25);document.getElementById('nonDirectionalRadiusNumber').onchange=()=>syncRadius('nonDirectionalRadiusRange','nonDirectionalRadiusNumber',false,25);
+  setGraylineControlsFromDate(currentUtcDate());
+  graylineEnabled.onchange=()=>{if(graylineEnabled.checked){if(graylineLive.checked)startGraylineLive();else drawGrayline(graylineDateFromControls());}else{removeGraylineLayers();graylineStatus.textContent='Grayline off.';}};
+  graylineLive.onchange=()=>{if(graylineLive.checked){startGraylineLive();}else{stopGraylineLive();if(graylineEnabled.checked)drawGrayline(graylineDateFromControls());}};
+  graylineDate.onchange=applyManualGrayline;
+  graylineTime.onchange=()=>{const [hh,mm]=graylineTime.value.split(':').map(Number);graylineMinuteSlider.value=(hh||0)*60+(mm||0);applyManualGrayline();};
+  graylineMinuteSlider.oninput=()=>{const mins=Number(graylineMinuteSlider.value);graylineTime.value=`${pad2(Math.floor(mins/60))}:${pad2(mins%60)}`;applyManualGrayline();};
+  graylineNow.onclick=()=>{disableGraylineLive();setGraylineControlsFromDate(currentUtcDate());drawGrayline(graylineDateFromControls());refreshLiveDx();};
+  graylineMinus10.onclick=()=>{const d=graylineDateFromControls();d.setUTCMinutes(d.getUTCMinutes()-10);setGraylineControlsFromDate(d);applyManualGrayline();};
+  graylinePlus10.onclick=()=>{const d=graylineDateFromControls();d.setUTCMinutes(d.getUTCMinutes()+10);setGraylineControlsFromDate(d);applyManualGrayline();};
+  const readmeModal=document.getElementById('readmeModal');
+  const openReadme=()=>{readmeModal.classList.add('open');readmeModal.setAttribute('aria-hidden','false');};
+  const closeReadme=()=>{readmeModal.classList.remove('open');readmeModal.setAttribute('aria-hidden','true');};
+  document.getElementById('readmeBtn').onclick=openReadme;
+  document.getElementById('graylineBtn').onclick=()=>{const sidebar=document.querySelector('.left');const panel=document.getElementById('graylinePanel');sidebar.scrollTo({top:Math.max(0,panel.offsetTop-8),behavior:'smooth'});};
+  document.getElementById('readmeCloseBtn').onclick=closeReadme;
+  readmeModal.onclick=e=>{if(e.target===readmeModal)closeReadme();};
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeReadme();if(gcDebugActive)clearGCDebugSelection();}});
+  loadData();
+}
+init();
+</script>
+<script>
+'use strict';
+(function(){
+  const modes=['selectActiveDayBtn','selectActiveNightBtn','addAllBtn'];
+  const frequency=document.getElementById('frequencySelect');
+  const status=document.getElementById('mobileStatus');
+  const baseChange=frequency.onchange;
+  frequency.onchange=function(){
+    clearAll();
+    modes.forEach(id=>document.getElementById(id).classList.remove('active'));
+    if(baseChange)baseChange();
+    status.textContent=frequency.value?frequency.value+' kHz - select a mode.':'Choose a frequency and mode.';
+  };
+  modes.forEach(id=>{
+    const button=document.getElementById(id);
+    const original=button.onclick;
+    button.onclick=function(){
+      if(!frequency.value){status.textContent='Select a frequency first.';return;}
+      clearAll();
+      original();
+      modes.forEach(key=>document.getElementById(key).classList.toggle('active',key===id));
+      const label=id==='selectActiveDayBtn'?'Active Day':id==='selectActiveNightBtn'?'Active Night':'All';
+      status.textContent=frequency.value+' kHz - '+label+' - '+plotted.length+' plotted';
+    };
+  });
+  document.getElementById('clearTopBtn').addEventListener('click',()=>{
+    modes.forEach(id=>document.getElementById(id).classList.remove('active'));
+    status.textContent=frequency.value?frequency.value+' kHz - cleared.':'Choose a frequency and mode.';
+  });
+  window.addEventListener('resize',()=>map.invalidateSize());
+  setTimeout(()=>map.invalidateSize(),200);
+})();
+</script></body>
+</html>
