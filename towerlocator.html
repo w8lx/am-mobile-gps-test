@@ -78,12 +78,25 @@ function search(){
  if(radiusCircle)radiusCircle.remove();radiusCircle=L.circle([ref.lat,ref.lon],{radius:r*1000,color:'#126bb3',weight:2,fillColor:'#126bb3',fillOpacity:.045,interactive:false,dashArray:'5 5'}).addTo(map);
  stationLayer.clearLayers();if(!dataReady){showMessage('Reference point selected. Loading station data...');return;}
  const candidates=[];for(const p of allPatterns){if($('currentOnly').checked&&!patternVisibleCurrent(p))continue;const lat=recordLat(p),lon=recordLon(p);if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue;const db=distBear(ref.lat,ref.lon,lat,lon);if(db.distance<=r)candidates.push({p,status:patternStatus(p),...db});}
- const sites=groupedCandidates(candidates).sort((a,b)=>a.distance-b.distance||a.freq-b.freq||a.call.localeCompare(b.call));
- for(const g of sites){const active=['ACTIVE','CP','STA'].includes(g.status);const marker=L.circleMarker([g.lat,g.lon],{radius:7,color:'#7c1010',weight:1.5,fillColor:active?'#e22b2b':'#777',fillOpacity:.9}).addTo(stationLayer);
-  const content='<b>'+esc(g.call)+'</b> '+esc(g.freq??'--')+' kHz<br>'+esc(g.status)+(g.source?' ('+esc(g.source)+')':'')+'<br>'+esc(powerText(g))+'<br>'+g.distance.toFixed(2)+' km / '+(g.distance*0.621371).toFixed(2)+' mi<br>'+g.bearing.toFixed(1)+' deg '+dir16(g.bearing)+'<br>'+g.lat.toFixed(5)+', '+g.lon.toFixed(5)+'<br>FID '+esc(g.fid);
-  marker.bindPopup(content,{maxWidth:260});
+ const stations=groupedCandidates(candidates).sort((a,b)=>a.distance-b.distance||a.freq-b.freq||a.call.localeCompare(b.call));
+ const siteGroups=new Map();
+ for(const g of stations){
+  // Group only exactly coincident coordinates; preserve separate station records.
+  const key=g.lat+','+g.lon;
+  if(!siteGroups.has(key))siteGroups.set(key,[]);
+  siteGroups.get(key).push(g);
  }
- $('count').textContent=sites.length+' AM site'+(sites.length===1?'':'s');$('status').textContent='Within '+r+' km; tap a dot for details.';showMessage(sites.length?'Tap a station dot for details. Reference marker can be dragged.':'No matching AM records within '+r+' km.');
+ for(const group of siteGroups.values()){
+  const g=group[0];
+  const active=group.some(s=>['ACTIVE','CP','STA'].includes(s.status));
+  const marker=L.circleMarker([g.lat,g.lon],{radius:7,color:'#7c1010',weight:1.5,fillColor:active?'#e22b2b':'#777',fillOpacity:.9}).addTo(stationLayer);
+  const shared=group.length>1;
+  const heading=shared?'<b>Shared transmitter site ('+group.length+' records)</b><br>':'';
+  const details=group.map(s=>'<div style="margin-top:6px'+(shared?';padding-top:6px;border-top:1px solid #ccc':'')+'"><b>'+esc(s.call)+'</b> '+esc(s.freq??'--')+' kHz<br>'+esc(s.status)+(s.source?' ('+esc(s.source)+')':'')+'<br>'+esc(powerText(s))+'<br>FID '+esc(s.fid)+'</div>').join('');
+  const content=heading+details+'<div style="margin-top:7px">'+g.distance.toFixed(2)+' km / '+(g.distance*0.621371).toFixed(2)+' mi<br>'+g.bearing.toFixed(1)+' deg '+dir16(g.bearing)+'<br>'+g.lat.toFixed(5)+', '+g.lon.toFixed(5)+'</div>';
+  marker.bindPopup(content,{maxWidth:280,maxHeight:300});
+ }
+ $('count').textContent=siteGroups.size+' AM site'+(siteGroups.size===1?'':'s');$('status').textContent='Within '+r+' km; tap a dot for details.';showMessage(siteGroups.size?'Tap a station dot for details. Reference marker can be dragged.':'No matching AM records within '+r+' km.');
 }
 function initMap(){map=L.map('map',{zoomControl:true}).setView([39.5,-98.35],4);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);stationLayer=L.layerGroup().addTo(map);map.on('click',e=>setReference(e.latlng.lat,e.latlng.lng,false));setTimeout(()=>map.invalidateSize(),0);}
 async function loadData(){try{const [pr,fr,ar,cr]=await Promise.all([fetch(PATTERN_URL,{cache:'no-store'}),fetch(FACILITY_URL,{cache:'no-store'}),fetch(AUTHORIZATION_URL,{cache:'no-store'}),fetch(CANADA_ISED_URL,{cache:'no-store'}).catch(()=>null)]);if(!pr.ok||!fr.ok||!ar.ok)throw Error('Database download failed ('+[pr.status,fr.status,ar.status].join('/')+')');const patterns=await pr.json(),fac=await fr.json(),auth=await ar.json();if(!Array.isArray(patterns)||!Array.isArray(fac.facilities)||!auth.patterns)throw Error('Unexpected database format');allPatterns=patterns;facilityById=new Map(fac.facilities.map(f=>[String(f.fid),f]));authorizationOverlay=auth;if(cr&&cr.ok){try{const j=await cr.json();if(j?.patterns&&Array.isArray(j.stations)){canadaIsedOverlay=j;for(const s of j.stations)for(const m of Object.values(s.modes||{}))if(m?.facilityId!=null&&m?.patternId)canadaByFid.set(String(m.facilityId),s.call);}}catch(e){canadaIsedOverlay=null;}}dataReady=true;showMessage(ref?'Station data ready. Tap a dot for details.':'Tap anywhere on the map or use GPS to select a reference point.');search();}catch(e){showMessage('Could not load station data: '+e.message);$('status').textContent='Data loading failed.';}}
