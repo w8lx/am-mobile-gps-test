@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101010">
+<title>AM Tower Locator (Mobile) | W8LX</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#111;color:#111}
+body{overflow:hidden}.app{height:100%;height:100dvh;display:flex;flex-direction:column;min-height:0}
+.top{height:43px;flex:none;background:#050505;color:#fff;display:flex;align-items:center;gap:7px;padding:0 9px;border-bottom:1px solid #333}.title{font-weight:700;font-size:17px;white-space:nowrap}.ver{color:#aaa;font-size:11px}.spacer{flex:1}
+button{font-family:inherit;cursor:pointer}.top button{background:#222;color:#fff;border:1px solid #666;border-radius:5px;font-size:12px;padding:5px 8px}
+.controls{flex:none;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:7px 8px;background:#f7f7f7;border-bottom:1px solid #aaa;font-size:12px}
+.controls button{border:1px solid #777;background:#eee;color:#222;border-radius:5px;padding:7px 9px;font-size:12px}.controls button.primary{background:#0b58ad;color:#fff;border-color:#0b58ad}.controls button.on{background:#cfe9ff;border-color:#0b58ad}.controls label{white-space:nowrap}.controls input[type=checkbox]{vertical-align:middle;margin:0 3px 0 0}.controls input[type=number]{width:62px;height:29px;border:1px solid #888;border-radius:5px;padding:2px 4px;font-size:12px}
+.mapWrap{flex:1 1 auto;min-height:0;position:relative}.map{height:100%;width:100%}.message{position:absolute;z-index:600;left:8px;top:8px;background:#ffffffed;border:1px solid #bbb;border-radius:5px;padding:6px 8px;font-size:11px;max-width:calc(100% - 65px);pointer-events:none;line-height:1.3}
+.footer{flex:none;background:#f6f6f6;border-top:1px solid #aaa;padding:6px 9px;min-height:34px;font-size:11px;color:#444;display:flex;align-items:center;gap:7px}.footer .count{font-weight:700;color:#144d80}
+.leaflet-control-attribution,.leaflet-control-attribution a{font-size:9px!important;line-height:1.2!important}
+.modalBackdrop{display:none;position:fixed;z-index:2500;inset:0;background:#0009;align-items:center;justify-content:center;padding:18px}.modalBackdrop.open{display:flex}.modal{background:#fff;width:min(430px,96vw);max-height:82dvh;overflow:auto;border-radius:9px;border:1px solid #777;padding:15px;font-size:14px;line-height:1.5}.modal h2{font-size:17px;margin:0 0 9px}.modal p{margin:0 0 9px}.closeRow{text-align:right}.closeRow button{padding:7px 14px;border:1px solid #888;border-radius:5px;background:#eee}
+@media(max-width:380px){.title{font-size:15px}.controls{gap:5px;padding:6px}.controls button{padding:6px 7px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top"><div class="title">AM Tower Locator</div><span class="ver">Mobile Test</span><div class="spacer"></div><button id="readmeBtn" type="button">Read Me</button></header>
+  <div class="controls">
+    <button type="button" id="gpsBtn" class="primary">GPS</button>
+    <label for="radiusSelect">Radius</label>
+    <select id="radiusSelect" style="height:30px;border:1px solid #888;border-radius:5px;background:white;font-size:12px"><option value="5">5 km</option><option value="10">10 km</option><option value="25" selected>25 km</option><option value="50">50 km</option><option value="custom">Custom</option></select>
+    <input type="number" id="customRadius" min="0.1" max="1000" step="0.1" value="25" aria-label="Custom radius in kilometers" style="display:none">
+    <label><input type="checkbox" id="currentOnly" checked>Current only</label>
+  </div>
+  <div class="mapWrap"><div id="map" class="map"></div><div class="message" id="message">Loading AM station data... Tap the map or use GPS to select a reference point.</div></div>
+  <footer class="footer"><span class="count" id="count">No search yet</span><span id="status">Select a point on the map or use GPS.</span></footer>
+</div>
+<div class="modalBackdrop" id="readmeModal" aria-hidden="true"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="readmeTitle"><h2 id="readmeTitle">AM Tower Locator (Mobile)</h2><p>Tap anywhere on the map or use GPS to set your reference point. Select a radius to display nearby AM transmitter sites.</p><p>Tap a station dot to see its callsign, frequency, operating status, power, distance, and bearing.</p><p>Turn off Current only to include historical, inactive, and superseded database records. GPS is used once when requested; it does not continuously track your position.</p><p>Results are derived from FCC LMS data and Canadian ISED status information. Records may contain errors.</p><div class="closeRow"><button type="button" id="closeReadme">Close</button></div></div></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+'use strict';
+const R=6371.0088;
+const PATTERN_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_patterns_us_lms_geometry_master_grouped.json';
+const FACILITY_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_facilities_us_lms_geometry_master.json';
+const AUTHORIZATION_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_authorization_overlay.json';
+const CANADA_ISED_URL='https://raw.githubusercontent.com/w8lx/AMDB_Master/main/data/am_canada_ised_overlay_v03.json';
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rad=x=>x*Math.PI/180,deg=x=>x*180/Math.PI;
+let map,refMarker=null,radiusCircle=null,stationLayer=null,ref=null,allPatterns=[],authorizationOverlay=null,canadaIsedOverlay=null,facilityById=new Map(),dataReady=false;
+let canadaByFid=new Map();
+function recordLat(rec){return Number(rec.lat ?? (Number(rec.latd)+Number(rec.latm||0)/60+Number(rec.lats||0)/3600));}
+function recordLon(rec){if(rec.lon!==undefined)return Number(rec.lon);return -(Number(rec.lond)+Number(rec.lonm||0)/60+Number(rec.lons||0)/3600);}
+function distBear(lat1,lon1,lat2,lon2){const a1=rad(lat1),a2=rad(lat2),dl=rad(lon2-lon1),da=rad(lat2-lat1);const h=Math.sin(da/2)**2+Math.cos(a1)*Math.cos(a2)*Math.sin(dl/2)**2;const d=2*R*Math.asin(Math.min(1,Math.sqrt(h)));const y=Math.sin(dl)*Math.cos(a2),x=Math.cos(a1)*Math.sin(a2)-Math.sin(a1)*Math.cos(a2)*Math.cos(dl);return {distance:d,bearing:(deg(Math.atan2(y,x))+360)%360};}
+function dir16(b){const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','WNW','NW','NNW'];return dirs[Math.round(b/22.5)%16];}
+function freqKhz(v){const n=Number(String(v??'').replace(/[^0-9.]/g,''));if(!Number.isFinite(n))return null;return Math.round(n>100000?n/1000:n);}
+function canadaForPattern(p){return canadaIsedOverlay?.patterns?.[p?.id]||null;}
+function authorizationClass(p){if(!/^[KW]/i.test(String(p?.call||'')))return '';return String(authorizationOverlay?.patterns?.[p?.id]?.primaryClass||'').toUpperCase();}
+function patternStatus(p){if(canadaForPattern(p))return {label:'ACTIVE',source:'ISED'};const cls=authorizationClass(p);return {label:({LICENSE:'ACTIVE',CP:'CP',STA:'STA',HISTORICAL:'INACTIVE',AMBIGUOUS:'AMBIGUOUS',UNKNOWN:'AMBIGUOUS'})[cls]||'UNCLASSIFIED',source:cls?'FCC':''};}
+// Preserve the desktop locator's current-only status definition.
+function patternVisibleCurrent(p){if(canadaForPattern(p))return true;return ['LICENSE','CP','STA','AMBIGUOUS','UNKNOWN'].includes(authorizationClass(p));}
+function modeName(v){v=String(v||'').toUpperCase();return v==='NIG'?'NIGHT':v==='CRI'?'CH':v==='CRIT'?'CH':v||'UNSPEC';}
+function fmtKw(v){if(!Number.isFinite(v))return '--';const s=v<1?v.toFixed(3).replace(/0+$/,'').replace(/\.$/,''):v<10?v.toFixed(2).replace(/0+$/,'').replace(/\.$/,''):v.toFixed(1).replace(/\.0$/,'');return s+' kW';}
+function powerText(g){const order=['DAY','CH','NIGHT'];const parts=[];for(const m of order){if(g.modes.has(m))parts.push((m==='NIGHT'?'N':m)+' '+fmtKw(g.modes.get(m)));}for(const [m,v] of g.modes){if(!order.includes(m))parts.push(m+' '+fmtKw(v));}return parts.length?parts.join(' / '):'--';}
+function radiusKm(){const r=$('radiusSelect').value==='custom'?Number($('customRadius').value):Number($('radiusSelect').value);return Number.isFinite(r)&&r>=0.1&&r<=1000?r:null;}
+function showMessage(s){$('message').textContent=s;}
+function setReference(lat,lon,center=false){if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return;ref={lat,lon};if(!refMarker){refMarker=L.marker([lat,lon],{draggable:true,title:'Reference point'}).addTo(map);refMarker.on('dragend',e=>{const p=e.target.getLatLng();setReference(p.lat,p.lng,false);});}else refMarker.setLatLng([lat,lon]);if(center)map.panTo([lat,lon]);search();}
+function groupedCandidates(candidates){
+ const groups=new Map();
+ for(const row of candidates){const p=row.p,lat=recordLat(p),lon=recordLon(p),freq=freqKhz(p.freq),fid=String(p.fid??'');const key=[fid,freq??'',lat.toFixed(5),lon.toFixed(5),row.status.label].join('|');let g=groups.get(key);
+  if(!g){g={fid,lat,lon,freq,status:row.status.label,source:row.status.source,calls:new Set(),modes:new Map(),distance:row.distance,bearing:row.bearing};groups.set(key,g);}
+  if(p.call)g.calls.add(String(p.call));const mode=modeName(p.mode),kw=Number(p.kw);if(Number.isFinite(kw)){const old=g.modes.get(mode);if(old===undefined||kw>old)g.modes.set(mode,kw);}
+  if(row.distance<g.distance){g.distance=row.distance;g.bearing=row.bearing;}
+ }
+ return [...groups.values()].map(g=>{const f=facilityById.get(g.fid);const ca=canadaByFid.get(g.fid);const calls=[...g.calls];const call=ca|| ((['ACTIVE','CP','STA','AMBIGUOUS'].includes(g.status)&&f?.call&&/^[KW]/i.test(String(f.call)))?String(f.call):null)||calls[0]||f?.call||'(none)';return {...g,call};});
+}
+function search(){
+ if(!ref){$('count').textContent='No search yet';$('status').textContent='Tap the map or use GPS.';return;}
+ const r=radiusKm();if(r===null){showMessage('Enter a search radius from 0.1 to 1000 km.');return;}
+ if(radiusCircle)radiusCircle.remove();radiusCircle=L.circle([ref.lat,ref.lon],{radius:r*1000,color:'#126bb3',weight:2,fillColor:'#126bb3',fillOpacity:.045,interactive:false,dashArray:'5 5'}).addTo(map);
+ stationLayer.clearLayers();if(!dataReady){showMessage('Reference point selected. Loading station data...');return;}
+ const candidates=[];for(const p of allPatterns){if($('currentOnly').checked&&!patternVisibleCurrent(p))continue;const lat=recordLat(p),lon=recordLon(p);if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)continue;const db=distBear(ref.lat,ref.lon,lat,lon);if(db.distance<=r)candidates.push({p,status:patternStatus(p),...db});}
+ const sites=groupedCandidates(candidates).sort((a,b)=>a.distance-b.distance||a.freq-b.freq||a.call.localeCompare(b.call));
+ for(const g of sites){const active=['ACTIVE','CP','STA'].includes(g.status);const marker=L.circleMarker([g.lat,g.lon],{radius:7,color:'#7c1010',weight:1.5,fillColor:active?'#e22b2b':'#777',fillOpacity:.9}).addTo(stationLayer);
+  const content='<b>'+esc(g.call)+'</b> '+esc(g.freq??'--')+' kHz<br>'+esc(g.status)+(g.source?' ('+esc(g.source)+')':'')+'<br>'+esc(powerText(g))+'<br>'+g.distance.toFixed(2)+' km / '+(g.distance*0.621371).toFixed(2)+' mi<br>'+g.bearing.toFixed(1)+' deg '+dir16(g.bearing)+'<br>'+g.lat.toFixed(5)+', '+g.lon.toFixed(5)+'<br>FID '+esc(g.fid);
+  marker.bindPopup(content,{maxWidth:260});
+ }
+ $('count').textContent=sites.length+' AM site'+(sites.length===1?'':'s');$('status').textContent='Within '+r+' km; tap a dot for details.';showMessage(sites.length?'Tap a station dot for details. Reference marker can be dragged.':'No matching AM records within '+r+' km.');
+}
+function initMap(){map=L.map('map',{zoomControl:true}).setView([39.5,-98.35],4);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);stationLayer=L.layerGroup().addTo(map);map.on('click',e=>setReference(e.latlng.lat,e.latlng.lng,false));setTimeout(()=>map.invalidateSize(),0);}
+async function loadData(){try{const [pr,fr,ar,cr]=await Promise.all([fetch(PATTERN_URL,{cache:'no-store'}),fetch(FACILITY_URL,{cache:'no-store'}),fetch(AUTHORIZATION_URL,{cache:'no-store'}),fetch(CANADA_ISED_URL,{cache:'no-store'}).catch(()=>null)]);if(!pr.ok||!fr.ok||!ar.ok)throw Error('Database download failed ('+[pr.status,fr.status,ar.status].join('/')+')');const patterns=await pr.json(),fac=await fr.json(),auth=await ar.json();if(!Array.isArray(patterns)||!Array.isArray(fac.facilities)||!auth.patterns)throw Error('Unexpected database format');allPatterns=patterns;facilityById=new Map(fac.facilities.map(f=>[String(f.fid),f]));authorizationOverlay=auth;if(cr&&cr.ok){try{const j=await cr.json();if(j?.patterns&&Array.isArray(j.stations)){canadaIsedOverlay=j;for(const s of j.stations)for(const m of Object.values(s.modes||{}))if(m?.facilityId!=null&&m?.patternId)canadaByFid.set(String(m.facilityId),s.call);}}catch(e){canadaIsedOverlay=null;}}dataReady=true;showMessage(ref?'Station data ready. Tap a dot for details.':'Tap anywhere on the map or use GPS to select a reference point.');search();}catch(e){showMessage('Could not load station data: '+e.message);$('status').textContent='Data loading failed.';}}
+$('gpsBtn').onclick=()=>{if(!navigator.geolocation){showMessage('GPS is not available in this browser.');return;}$('gpsBtn').disabled=true;showMessage('Requesting current location...');navigator.geolocation.getCurrentPosition(p=>{$('gpsBtn').disabled=false;setReference(p.coords.latitude,p.coords.longitude,true);},e=>{$('gpsBtn').disabled=false;showMessage('GPS unavailable: '+e.message+'. Tap the map instead.');},{enableHighAccuracy:true,timeout:15000,maximumAge:0});};
+$('radiusSelect').onchange=()=>{$('customRadius').style.display=$('radiusSelect').value==='custom'?'inline-block':'none';search();};
+$('customRadius').onchange=search;$('currentOnly').onchange=search;
+$('readmeBtn').onclick=()=>{$('readmeModal').classList.add('open');$('readmeModal').setAttribute('aria-hidden','false');};
+$('closeReadme').onclick=()=>{$('readmeModal').classList.remove('open');$('readmeModal').setAttribute('aria-hidden','true');};
+$('readmeModal').onclick=e=>{if(e.target===$('readmeModal'))$('closeReadme').click();};
+window.addEventListener('resize',()=>{if(map)setTimeout(()=>map.invalidateSize(false),0);});
+initMap();loadData();
+</script>
+</body>
+</html>
